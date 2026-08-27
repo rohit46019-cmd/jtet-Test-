@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "1",
+  "collections": [
+    {
+      "name": "users",
+      "documentId": "uid",
+      "fields": [
+        { "name": "email", "type": "string" },
+        { "name": "role", "type": "string", "description": "'admin' or 'user'" },
+        { "name": "name", "type": "string" },
+        { "name": "totalPoints", "type": "number" },
+        { "name": "questionsAttempted", "type": "number" },
+        { "name": "correctAnswers", "type": "number" },
+        { "name": "lastActiveAt", "type": "number" }
+      ],
+      "access": "Anyone can read users for leaderboard. Users can create/update their own profile."
+    },
+    {
+      "name": "categories",
+      "documentId": "auto",
+      "fields": [
+        { "name": "name", "type": "string" },
+        { "name": "createdAt", "type": "timestamp" }
+      ],
+      "access": "Anyone can read. Only admins can create/update/delete."
+    },
+    {
+      "name": "quizzes",
+      "documentId": "auto",
+      "fields": [
+        { "name": "title", "type": "string" },
+        { "name": "categoryId", "type": "string" },
+        { "name": "questions", "type": "array" },
+        { "name": "createdAt", "type": "timestamp" },
+        { "name": "createdBy", "type": "string" }
+      ],
+      "access": "Anyone can read. Only admins can create/update/delete."
+    },
+    {
+      "name": "settings",
+      "documentId": "settingId",
+      "fields": [
+        { "name": "positiveMarks", "type": "number" },
+        { "name": "negativeMarks", "type": "number" },
+        { "name": "timePerQuestion", "type": "number" },
+        { "name": "updatedAt", "type": "number" }
+      ],
+      "access": "Anyone can read. Only admins can create/update/delete."
+    }
+  ]
+}

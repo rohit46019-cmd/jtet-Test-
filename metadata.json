@@ -1,0 +1,6 @@
+{
+  "name": "Quiz Flash",
+  "description": "Interactive AI Quiz Generator with PDF & JSON upload, MongoDB cloud database, offline-first local cache, and unlimited multi-key rotation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
