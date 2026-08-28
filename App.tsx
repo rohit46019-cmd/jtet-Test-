@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { extractTextFromPDF } from './services/pdfService';
 import { generateQuizFromText, generateQuizFromPrompt, generateSingleQuestion, generateBatchQuestions, setUserApiKeys } from './services/geminiService';
-import { AppState, TabState, Quiz as QuizType, UserAnswer, StoredQuiz, BookmarkedQuestion, Category, QuizConfig } from './types';
+import { AppState, TabState, Quiz as QuizType, UserAnswer, StoredQuiz, BookmarkedQuestion, Category, QuizConfig, SavedQuizSession } from './types';
 import FileUpload from './components/FileUpload';
 import Quiz from './components/Quiz';
 import { QuizConfigModal } from './components/QuizConfigModal';
+import { ResumeOrRestartModal } from './components/ResumeOrRestartModal';
 import LoadingScreen from './components/LoadingScreen';
 import AdminPanel from './components/AdminPanel';
 import Leaderboard from './components/Leaderboard';
@@ -13,6 +14,7 @@ import { useAuth } from './hooks/useAuth';
 import { googleDriveService } from './services/googleDriveService';
 import { phoneStorageService } from './services/phoneStorageService';
 import { PhoneStorageModal } from './components/PhoneStorageModal';
+import { quizSessionService } from './services/quizSessionService';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, RefreshCcw, BookOpen, Trash2, Home, LayoutGrid, Bookmark, 
@@ -20,7 +22,7 @@ import {
   MessageSquare, ArrowRight, Sun, Moon, Maximize, Play, Settings, 
   ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
   ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe,
-  Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save
+  Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 
@@ -156,20 +158,10 @@ const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   const [pendingQuizToStart, setPendingQuizToStart] = useState<QuizType | null>(null);
+  const [resumeModalSession, setResumeModalSession] = useState<SavedQuizSession | null>(null);
 
-  const [pausedSession, setPausedSession] = useState<{
-    quiz: QuizType;
-    quizConfig: QuizConfig;
-    currentQuestionIndex: number;
-    userAnswers: UserAnswer[];
-    timer: number;
-  } | null>(() => {
-    try {
-      const saved = localStorage.getItem('qf_paused_session_v1');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
+  const [pausedSession, setPausedSession] = useState<SavedQuizSession | null>(() => {
+    return quizSessionService.getActiveSession();
   });
 
   const [pausedQuizState, setPausedQuizState] = useState<{
@@ -178,13 +170,26 @@ const App: React.FC = () => {
     timer: number;
   } | null>(null);
 
-  const handleSaveAndExit = (session: { quiz: QuizType; quizConfig: QuizConfig; currentQuestionIndex: number; userAnswers: UserAnswer[]; timer: number }) => {
-    setPausedSession(session);
-    localStorage.setItem('qf_paused_session_v1', JSON.stringify(session));
-    restart();
+  // Checks if a quiz already has paused progress; if yes, shows Resume or Start Fresh modal
+  const handleInitiateQuiz = (targetQuiz: QuizType) => {
+    const saved = quizSessionService.getSessionForQuiz(targetQuiz);
+    if (saved && (saved.currentQuestionIndex > 0 || (saved.userAnswers && saved.userAnswers.length > 0) || (saved.timer && saved.timer > 0))) {
+      setResumeModalSession(saved);
+    } else {
+      setPausedQuizState(null);
+      setPendingQuizToStart(targetQuiz);
+    }
   };
 
-  const resumePausedSession = (session: { quiz: QuizType; quizConfig: QuizConfig; currentQuestionIndex: number; userAnswers: UserAnswer[]; timer: number }) => {
+  const handleSaveAndExit = (session: SavedQuizSession) => {
+    quizSessionService.saveSession(session);
+    setPausedSession(session);
+    restart();
+    setSuccessMessage(`✓ Test paused at Question ${session.currentQuestionIndex + 1}. You can resume anytime!`);
+    setTimeout(() => setSuccessMessage(null), 4000);
+  };
+
+  const resumePausedSession = (session: SavedQuizSession) => {
     setQuiz(session.quiz);
     setQuizConfig(session.quizConfig);
     setPausedQuizState({
@@ -193,13 +198,23 @@ const App: React.FC = () => {
       timer: session.timer
     });
     setAppState('QUIZ_IN_PROGRESS');
+    setResumeModalSession(null);
     setPausedSession(null);
-    localStorage.removeItem('qf_paused_session_v1');
+  };
+
+  const startFreshFromPausedSession = (session: SavedQuizSession) => {
+    quizSessionService.clearSessionForQuiz(session.quiz.id || session.quiz.title);
+    setPausedSession(quizSessionService.getActiveSession());
+    setPausedQuizState(null);
+    setResumeModalSession(null);
+    setPendingQuizToStart(session.quiz);
   };
 
   const discardPausedSession = () => {
+    if (pausedSession) {
+      quizSessionService.clearSessionForQuiz(pausedSession.quiz.id || pausedSession.quiz.title);
+    }
     setPausedSession(null);
-    localStorage.removeItem('qf_paused_session_v1');
   };
 
   // Quiz Marking and Timer Rules (Synced from Firestore)
@@ -642,7 +657,7 @@ const App: React.FC = () => {
       saveToLibrary(generatedQuiz);
       setTempText('');
       setAppState('IDLE');
-      setPendingQuizToStart(generatedQuiz);
+      handleInitiateQuiz(generatedQuiz);
     } catch (err: any) {
       setError(err.message || "Generation failed.");
       setAppState('IDLE');
@@ -657,7 +672,7 @@ const App: React.FC = () => {
       const generatedQuiz = await generateQuizFromPrompt(aiPrompt, 6, aiLanguage, quizDifficulty); 
       saveToLibrary(generatedQuiz);
       setAppState('IDLE');
-      setPendingQuizToStart(generatedQuiz);
+      handleInitiateQuiz(generatedQuiz);
     } catch (err: any) {
       setError(err.message || "AI Prompt failed.");
       setAppState('IDLE');
@@ -688,7 +703,7 @@ const App: React.FC = () => {
       questions: bookmarks.map(b => b.question),
       createdAt: Date.now()
     };
-    setPendingQuizToStart(practiceQuiz);
+    handleInitiateQuiz(practiceQuiz);
   };
 
   const calculateScoreData = (currentResults?: UserAnswer[]) => {
@@ -775,10 +790,18 @@ const App: React.FC = () => {
   const handleFinishQuiz = async (ans: UserAnswer[]) => {
     setResults(ans);
     setAppState('RESULTS');
+    if (quiz) {
+      quizSessionService.clearSessionForQuiz(quiz.id || quiz.title);
+      setPausedSession(quizSessionService.getActiveSession());
+    }
     await syncPointsToDatabase(ans);
   };
 
   const handleAbortQuiz = async (ans?: UserAnswer[]) => {
+    if (quiz) {
+      quizSessionService.clearSessionForQuiz(quiz.id || quiz.title);
+      setPausedSession(quizSessionService.getActiveSession());
+    }
     if (ans && ans.length > 0) {
       await syncPointsToDatabase(ans);
     }
@@ -830,13 +853,8 @@ const App: React.FC = () => {
              ) : (
                <button onClick={login} className="px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black text-[10px] uppercase tracking-wider hover:bg-blue-100 transition-all shrink-0">Login</button>
              )}
-             <button onClick={() => setShowPhoneStorageModal(true)} className={`p-1.5 sm:p-2 rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold ${isDarkMode ? 'bg-slate-800 text-blue-400 hover:bg-slate-700' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`} title="Phone Storage & Sync">
-               <Smartphone size={16} />
-               <span className="hidden md:inline">Storage</span>
-             </button>
-             <button onClick={() => setShowJsonInfo(true)} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-600'}`} title="JSON Template"><Brackets size={16} /></button>
-             <button onClick={toggleFullscreen} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-600'}`} title="Full Screen"><Maximize2 size={16} /></button>
-             <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-yellow-400' : 'bg-slate-100 text-slate-600'}`}>{isDarkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
+             <button onClick={toggleFullscreen} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'}`} title="Full Screen"><Maximize2 size={16} /></button>
+             <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{isDarkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
           </div>
         </header>
       )}
@@ -875,7 +893,10 @@ const App: React.FC = () => {
                   <Trophy size={18} /> Rank
                 </button>
                 <button onClick={() => { setShowPhoneStorageModal(true); setShowTopMenu(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                  <Smartphone size={18} className="text-blue-500" /> Phone Storage
+                  <Smartphone size={18} className="text-blue-500" /> Phone Storage & Sync
+                </button>
+                <button onClick={() => { setShowJsonInfo(true); setShowTopMenu(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+                  <Brackets size={18} className="text-indigo-500" /> JSON Format Guide
                 </button>
                 <button onClick={() => { navigateTo('SETTINGS'); setShowTopMenu(false); }} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${tab === 'SETTINGS' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   <Settings size={18} /> Settings
@@ -1182,9 +1203,16 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <button 
                         onClick={() => resumePausedSession(pausedSession)}
-                        className="flex-1 sm:flex-none px-6 py-3.5 bg-white text-amber-600 hover:bg-amber-50 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="flex-1 sm:flex-none px-5 py-3.5 bg-white text-amber-600 hover:bg-amber-50 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
                       >
-                        <Play size={14} fill="currentColor" /> Resume Now
+                        <Play size={14} fill="currentColor" /> Resume (Q {pausedSession.currentQuestionIndex + 1})
+                      </button>
+                      <button 
+                        onClick={() => startFreshFromPausedSession(pausedSession)}
+                        className="px-4 py-3.5 bg-amber-700/60 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-1.5"
+                        title="Start this test from beginning"
+                      >
+                        <RotateCcw size={13} /> Start Fresh
                       </button>
                       <button 
                         onClick={discardPausedSession}
@@ -1584,7 +1612,7 @@ const App: React.FC = () => {
 
                              <div className="flex items-center gap-1.5 shrink-0">
                                <button 
-                                 onClick={() => setPendingQuizToStart(q)}
+                                 onClick={() => handleInitiateQuiz(q)}
                                  className="px-3 py-1.5 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm active:scale-95 flex items-center gap-1"
                                >
                                  <Play size={12} fill="currentColor" /> Start
@@ -1732,6 +1760,17 @@ const App: React.FC = () => {
                  </div>
               </div>
            </div>
+        )}
+
+        {/* Resume or Start Fresh Modal */}
+        {resumeModalSession && (
+          <ResumeOrRestartModal
+            session={resumeModalSession}
+            onResume={() => resumePausedSession(resumeModalSession)}
+            onStartFresh={() => startFreshFromPausedSession(resumeModalSession)}
+            onClose={() => setResumeModalSession(null)}
+            isDarkMode={isDarkMode}
+          />
         )}
 
         {pendingQuizToStart && (

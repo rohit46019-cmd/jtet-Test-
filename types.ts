@@ -58,3 +58,12 @@ export interface QuizConfig {
   testDurationMinutes: number; // minutes, 0 = no limit
   shuffleQuestions?: boolean;
 }
+
+export interface SavedQuizSession {
+  quiz: Quiz;
+  quizConfig: QuizConfig;
+  currentQuestionIndex: number;
+  userAnswers: UserAnswer[];
+  timer: number;
+  savedAt?: number;
+}

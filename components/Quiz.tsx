@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig } from '../types';
+import { quizSessionService } from '../services/quizSessionService';
 import { 
   CheckCircle2, XCircle, Info, Bookmark, LogOut, Timer, ChevronLeft, 
   ChevronRight, Send, AlertCircle, X, Check, Maximize2, Loader2, Sparkles, MoveHorizontal,
@@ -145,13 +146,34 @@ const Quiz: React.FC<QuizProps> = ({
     if (quiz && userAnswers.length >= 0) {
       const sessionData = {
         quiz,
-        quizConfig: quizConfig || { mode: 'PRACTICE', positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
+        quizConfig: quizConfig || { mode: 'PRACTICE' as const, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
         currentQuestionIndex,
         userAnswers,
         timer
       };
-      localStorage.setItem('qf_paused_session_v1', JSON.stringify(sessionData));
+      quizSessionService.saveSession(sessionData);
     }
+  }, [quiz, quizConfig, currentQuestionIndex, userAnswers, timer]);
+
+  // Window beforeunload & pagehide safety handlers for mobile browsers
+  useEffect(() => {
+    const handleSaveOnClose = () => {
+      if (quiz) {
+        quizSessionService.saveSession({
+          quiz,
+          quizConfig: quizConfig || { mode: 'PRACTICE' as const, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
+          currentQuestionIndex,
+          userAnswers,
+          timer
+        });
+      }
+    };
+    window.addEventListener('beforeunload', handleSaveOnClose);
+    window.addEventListener('pagehide', handleSaveOnClose);
+    return () => {
+      window.removeEventListener('beforeunload', handleSaveOnClose);
+      window.removeEventListener('pagehide', handleSaveOnClose);
+    };
   }, [quiz, quizConfig, currentQuestionIndex, userAnswers, timer]);
 
   // Touch Swipe Gesture State
