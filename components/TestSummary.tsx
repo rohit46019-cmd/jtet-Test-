@@ -129,12 +129,10 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
   }
 
   return (
-    <div className="max-w-4xl mx-auto pt-4 pb-24 px-3 sm:px-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="w-full max-w-2xl mx-auto pt-4 pb-24 px-0 sm:px-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
       
       {/* HEADER CARD */}
-      <div className={`rounded-3xl p-5 sm:p-8 border shadow-xl mb-6 relative overflow-hidden transition-all ${
-        isDarkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-slate-200/80 text-slate-900'
-      }`}>
+      <div className="w-full px-4 sm:px-0 mb-6 relative overflow-hidden transition-all text-slate-900 dark:text-white">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
@@ -302,7 +300,7 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
 
       {/* QUICK RETAKE WEAK AREAS BANNER IF INCORRECT > 0 */}
       {incorrectQuestions.length > 0 && onRetakeIncorrect && (
-        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-blue-500/10 border border-rose-500/20 dark:border-rose-900/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="mb-6 mx-4 sm:mx-0 p-4 rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-blue-500/10 border border-rose-500/20 dark:border-rose-900/40 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0">
               <ShieldAlert size={20} />
@@ -326,9 +324,7 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
       )}
 
       {/* QUESTION SOLUTION & REVIEW SECTION */}
-      <div className={`rounded-3xl p-4 sm:p-6 border shadow-xl ${
-        isDarkMode ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-slate-200/80 text-slate-900'
-      }`}>
+      <div className="w-full px-4 sm:px-0 transition-all text-slate-900 dark:text-white">
         
         {/* Section Title & Filter Tabs */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -539,7 +535,7 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
       </div>
 
       {/* FOOTER ACTION BAR */}
-      <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="mt-8 px-4 sm:px-0 flex flex-col sm:flex-row items-center justify-between gap-3">
         <button 
           onClick={onRestart} 
           className="w-full sm:w-auto px-6 py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"

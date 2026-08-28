@@ -31,14 +31,14 @@ const renderFormattedText = (text: string) => {
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
-        <strong key={idx} className="font-extrabold text-slate-900 dark:text-white">
+        <strong key={idx} className="font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/40 px-1.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-900/30">
           {part.slice(2, -2)}
         </strong>
       );
     }
     if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
       return (
-        <em key={idx} className="italic text-indigo-600 dark:text-indigo-300 font-semibold px-0.5">
+        <em key={idx} className="italic text-emerald-600 dark:text-emerald-400 font-extrabold bg-emerald-50/60 dark:bg-emerald-950/30 px-1 py-0.5 rounded-md">
           {part.slice(1, -1)}
         </em>
       );
@@ -53,97 +53,90 @@ const DecoratedExplanation: React.FC<{
 }> = ({ explanation, onAskAi }) => {
   if (!explanation && !onAskAi) return null;
 
-  // Split by individual newline characters to accurately preserve line breaks and paragraphs
-  const rawLines = (explanation || '').split('\n').map(l => l.trim());
-
-  let lines: string[] = [];
-  // If it's a massive block of text without list items, parse it nicely
-  if (rawLines.length === 1 && rawLines[0].length > 100 && !rawLines[0].includes('•')) {
-    const sentences = rawLines[0].split(/(?<=\.)\s+/);
-    lines.push(`**Core Concept:** ${sentences[0]}`);
-    if (sentences.length > 1) {
-      lines.push(''); // add a beautiful spacer line
-      lines.push(`**Why Correct:** ${sentences.slice(1, Math.min(3, sentences.length)).join(' ')}`);
-    }
-    if (sentences.length > 3) {
-      lines.push(''); // add another spacer line
-      lines.push(`• **Key Takeaway:** ${sentences.slice(3).join(' ')}`);
-    }
-  } else {
-    // Collapse consecutive duplicate empty lines for clean formatting, but preserve single empty lines for spacing
-    let lastWasEmpty = false;
-    for (const rawLine of rawLines) {
-      if (rawLine === '') {
-        if (!lastWasEmpty) {
-          lines.push('');
-          lastWasEmpty = true;
-        }
-      } else {
-        lines.push(rawLine);
-        lastWasEmpty = false;
-      }
-    }
-  }
+  // Split by double newline or single newline to parse paragraphs nicely
+  const paragraphs = (explanation || '')
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0);
 
   return (
-    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-50/90 via-indigo-50/40 to-slate-50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 shadow-md animate-in fade-in slide-in-from-bottom-2 mb-4 text-left select-text">
-      <div className="flex items-center justify-between mb-3.5 border-b border-blue-100 dark:border-slate-800 pb-2.5 flex-wrap gap-1.5">
+    <div className="p-4 sm:p-5.5 rounded-2xl bg-gradient-to-br from-indigo-50/80 via-blue-50/40 to-slate-50 dark:from-slate-900 dark:via-blue-950/30 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 shadow-md animate-in fade-in slide-in-from-bottom-2 mb-4 text-left select-text">
+      {/* Dynamic styles to ensure the scrollbar is completely invisible across all devices */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .no-scrollbar::-webkit-scrollbar {
+          display: none !important;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none !important;
+          scrollbar-width: none !important;
+        }
+      `}} />
+
+      <div className="flex items-center justify-between mb-4 border-b border-blue-100/80 dark:border-slate-800/85 pb-3 flex-wrap gap-2">
         <div className="flex items-center gap-1.5">
-          <div className="p-1 bg-blue-600 text-white rounded-md shadow-2xs">
-            <Sparkles size={12} />
+          <div className="p-1 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm">
+            <Brain size={14} className="animate-pulse" />
           </div>
-          <span className="font-black text-[10px] uppercase tracking-widest text-blue-700 dark:text-blue-400">
-            Key Insights & Explanation
-          </span>
+          <div>
+            <span className="font-black text-xs uppercase tracking-wider text-blue-700 dark:text-blue-400 block">
+              Explanation & Insights
+            </span>
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold block mt-0.5">Learn the concept step-by-step</span>
+          </div>
         </div>
         
         <div className="flex items-center gap-1.5">
           {onAskAi && (
             <button
               onClick={onAskAi}
-              className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-[8px] uppercase tracking-wider shadow-2xs active:scale-95 transition-all"
+              className="flex items-center gap-1 px-3 py-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-[9px] uppercase tracking-wider shadow-sm active:scale-95 transition-all"
             >
-              <Sparkles size={10} className="animate-pulse" />
-              <span>Instant AI Explanation</span>
+              <Sparkles size={11} className="animate-pulse" />
+              <span>Ask AI Helper</span>
             </button>
           )}
-          <span className="text-[8px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60 animate-pulse">
-            Smart Summary
-          </span>
         </div>
       </div>
 
-      <div className="space-y-2.5 text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
-        {lines.map((line, idx) => {
-          // If it is an empty line, render a beautiful paragraph spacer block
-          if (line === '') {
-            return <div key={idx} className="h-3" />;
-          }
+      <div className="space-y-3.5 text-xs sm:text-[13px] text-slate-750 dark:text-slate-200 leading-relaxed font-semibold">
+        {paragraphs.map((paragraph, pIdx) => {
+          const lines = paragraph.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          const hasBullet = lines.some(l => l.startsWith('•') || l.startsWith('-') || l.startsWith('*'));
 
-          const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('* ');
-          const cleanLine = isBullet ? line.replace(/^[•\-*]\s*/, '') : line;
-
-          if (isBullet) {
+          if (lines.length > 1 && hasBullet) {
             return (
-              <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-blue-100 dark:border-slate-800 shadow-2xs transition-all select-text">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 mt-1.5 shrink-0" />
-                <div className="flex-1 font-semibold text-xs sm:text-[13px] leading-relaxed text-slate-800 dark:text-slate-200">{renderFormattedText(cleanLine)}</div>
+              <div key={pIdx} className="space-y-2 bg-white/70 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-3xs">
+                {lines.map((line, lIdx) => {
+                  const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('* ');
+                  const cleanLine = isBullet ? line.replace(/^[•\-*]\s*/, '') : line;
+                  
+                  return (
+                    <div key={lIdx} className="flex items-start gap-2.5 p-1 select-text">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400 mt-1.5 shrink-0 shadow-3xs" />
+                      <div className="flex-1 text-slate-800 dark:text-slate-200 leading-relaxed">
+                        {renderFormattedText(cleanLine)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           }
 
-          if (cleanLine.startsWith('**') || cleanLine.startsWith('#')) {
+          // Render heading-like blocks or key concepts nicely
+          const isHeading = paragraph.startsWith('**') && paragraph.endsWith('**') && paragraph.length < 60;
+          if (isHeading) {
             return (
-              <div key={idx} className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100/80 dark:border-blue-900/40 select-text">
-                <div className="font-bold text-xs sm:text-[13px] text-blue-950 dark:text-blue-200 leading-relaxed">{renderFormattedText(cleanLine)}</div>
-              </div>
+              <h4 key={pIdx} className="font-extrabold text-blue-900 dark:text-blue-100 text-xs sm:text-[13px] bg-blue-100/50 dark:bg-blue-950/40 px-3.5 py-1.5 rounded-xl border border-blue-200/50 dark:border-blue-900/30 shadow-4xs inline-block">
+                {renderFormattedText(paragraph.replace(/\*\*/g, ''))}
+              </h4>
             );
           }
 
           return (
-            <div key={idx} className="p-1 font-semibold leading-relaxed text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 break-words whitespace-pre-wrap select-text">
-              {renderFormattedText(cleanLine)}
-            </div>
+            <p key={pIdx} className="p-3 bg-white/50 dark:bg-slate-800/20 rounded-2xl border border-slate-100/80 dark:border-slate-800/40 text-slate-850 dark:text-slate-200 break-words whitespace-pre-wrap select-text shadow-4xs leading-relaxed">
+              {renderFormattedText(paragraph)}
+            </p>
           );
         })}
       </div>
@@ -554,14 +547,14 @@ const Quiz: React.FC<QuizProps> = ({
       {/* Top Navigation Bar with premium dark focus styling */}
       <div className="bg-slate-900 text-white dark:bg-slate-950 border-b border-slate-800 px-4 py-2.5 shadow-md">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button 
               onClick={() => setShowPalette(!showPalette)} 
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/25 active:scale-95 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border border-blue-500/30 shadow-xs"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/25 active:scale-95 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border border-blue-500/30 shadow-xs shrink-0"
               title="Open Question Navigator"
             >
-              <HelpCircle size={12} className="text-blue-400 animate-pulse" />
-              <span>Q: {currentQuestionIndex + 1}{quiz.isInfinite ? "" : ` / ${quiz.questions.length}`}</span>
+              <HelpCircle size={11} className="text-blue-400 animate-pulse shrink-0" />
+              <span>{currentQuestionIndex + 1}{quiz.isInfinite ? "" : ` / ${quiz.questions.length}`}</span>
             </button>
 
             {/* Mode Badge */}
@@ -571,15 +564,15 @@ const Quiz: React.FC<QuizProps> = ({
             </span>
 
             {/* Timer Display */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-emerald-400 font-extrabold text-[10px] border border-slate-700">
-              <Timer size={13} className="text-emerald-400 animate-pulse shrink-0" />
+            <div className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-800 text-emerald-400 font-extrabold text-[10px] border border-slate-750 shrink-0">
+              <Timer size={12} className="text-emerald-400 animate-pulse shrink-0" />
               <span>
                 {totalSecondsAllowed > 0 
-                  ? `Remaining: ${formatTime(remainingSeconds)}` 
+                  ? formatTime(remainingSeconds)
                   : formatTime(timer)}
               </span>
               {effectiveTimePerQ > 0 && (
-                <span className={`ml-1 pl-1.5 border-l border-slate-750 font-mono text-[9px] ${questionTimer <= 5 ? 'text-rose-500 font-black animate-pulse' : 'text-slate-400'}`}>
+                <span className={`ml-1 pl-1 border-l border-slate-700 font-mono text-[9px] ${questionTimer <= 5 ? 'text-rose-500 font-black animate-pulse' : 'text-slate-400'}`}>
                   {questionTimer}s
                 </span>
               )}
@@ -590,36 +583,36 @@ const Quiz: React.FC<QuizProps> = ({
             <div className={`h-full bg-blue-500 transition-all duration-500 ${quiz.isInfinite ? 'animate-pulse' : ''}`} style={{ width: `${progressPercent}%` }} />
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             <button 
               onClick={() => setIsPaused(!isPaused)}
-              className={`px-2.5 py-1 rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center gap-1 transition-all ${
+              className={`px-2 py-1.5 rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center gap-1 transition-all shrink-0 ${
                 isPaused 
                   ? 'bg-amber-500 text-white animate-bounce shadow-md' 
                   : 'bg-slate-800 text-amber-400 border border-slate-700 hover:bg-slate-700'
               }`}
               title={isPaused ? "Resume Test" : "Pause Test"}
             >
-              {isPaused ? <Play size={12} fill="currentColor" /> : <Timer size={12} />}
-              <span>{isPaused ? 'Resume' : 'Pause'}</span>
+              {isPaused ? <Play size={11} fill="currentColor" /> : <Timer size={11} />}
+              <span className="hidden sm:inline">{isPaused ? 'Resume' : 'Pause'}</span>
             </button>
             <button 
               onClick={toggleFullscreen}
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-blue-400 transition-all hidden sm:block border border-slate-700"
+              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-blue-400 transition-all hidden sm:block border border-slate-700 shrink-0"
               title="Fullscreen"
             >
-              <Maximize2 size={15} />
+              <Maximize2 size={13} />
             </button>
             <button 
               onClick={() => onSaveQuestion({ quizTitle: quiz.title, question: currentQuestion })} 
-              className={`p-1.5 rounded-lg transition-all ${savedIds.has(currentQuestion.id) ? 'bg-blue-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-400'}`}
+              className={`p-1.5 rounded-lg transition-all shrink-0 ${savedIds.has(currentQuestion.id) ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-blue-400'}`}
               title="Bookmark Question"
             >
-              <Bookmark size={15} fill={savedIds.has(currentQuestion.id) ? "currentColor" : "none"} />
+              <Bookmark size={13} fill={savedIds.has(currentQuestion.id) ? "currentColor" : "none"} />
             </button>
             <button 
               onClick={() => setShowReportModal(true)} 
-              className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all flex items-center gap-1 font-bold text-[9px] uppercase tracking-wider"
+              className="p-1.5 rounded-lg bg-rose-950/20 text-rose-400 border border-rose-900/40 hover:bg-rose-900/40 transition-all flex items-center gap-1 font-bold text-[9px] uppercase tracking-wider shrink-0"
               title="Report Wrong Answer / Issue"
             >
               <AlertTriangle size={13} />
@@ -627,9 +620,9 @@ const Quiz: React.FC<QuizProps> = ({
             </button>
             <button 
               onClick={() => setShowSubmitConfirm(true)}
-              className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl shadow-md hover:from-emerald-600 hover:to-teal-600 active:scale-95 transition-all"
+              className="px-3 sm:px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl shadow-md hover:from-emerald-600 hover:to-teal-600 active:scale-95 transition-all shrink-0"
             >
-              Submit Test
+              <span>Submit<span className="hidden sm:inline"> Test</span></span>
             </button>
           </div>
         </div>
@@ -637,7 +630,7 @@ const Quiz: React.FC<QuizProps> = ({
 
       {/* Question Body with Touch Swipe Detection */}
       <div 
-        className="flex-1 overflow-y-auto px-4 py-6 relative touch-pan-y"
+        className="flex-1 overflow-y-auto px-0 sm:px-4 pt-1.5 pb-6 relative touch-pan-y"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -686,7 +679,7 @@ const Quiz: React.FC<QuizProps> = ({
         )}
 
         {/* Quiz Name Box (moved slightly up as requested) */}
-        <div className="max-w-md mx-auto mb-3">
+        <div className="w-full max-w-2xl mx-auto mb-2 px-4 sm:px-0">
           <div className="px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
@@ -708,19 +701,75 @@ const Quiz: React.FC<QuizProps> = ({
           </div>
         </div>
 
-        <div className="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5">
+        {/* Premium Horizontal Question Circle Navigator Bar */}
+        <div className="w-full max-w-2xl mx-auto mb-3 px-4 sm:px-0">
+          <div 
+            className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 w-full justify-start sm:justify-center flex-nowrap scroll-smooth no-scrollbar"
+            style={{
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
+            {currentQuiz.questions.map((_, i) => {
+              const status = getQuestionStatus(i);
+              const isActive = i === currentQuestionIndex;
+              
+              // Color mapping matches the gorgeous exam layout in user's reference image
+              let circleStyle = "";
+              if (isActive) {
+                if (status === 'correct') {
+                  circleStyle = "bg-emerald-500 text-white ring-4 ring-emerald-500/30 scale-105 z-10 font-black";
+                } else if (status === 'incorrect') {
+                  circleStyle = "bg-rose-500 text-white ring-4 ring-rose-500/30 scale-105 z-10 font-black";
+                } else if (status === 'answered') {
+                  circleStyle = "bg-emerald-500 text-white ring-4 ring-emerald-500/30 scale-105 z-10 font-black";
+                } else {
+                  circleStyle = "bg-blue-600 text-white ring-4 ring-blue-500/30 scale-105 z-10 font-black";
+                }
+              } else {
+                if (status === 'correct') {
+                  circleStyle = "bg-emerald-500 text-white hover:bg-emerald-600";
+                } else if (status === 'incorrect') {
+                  circleStyle = "bg-rose-500 text-white hover:bg-rose-600";
+                } else if (status === 'answered') {
+                  circleStyle = "bg-emerald-500 text-white hover:bg-emerald-600";
+                } else {
+                  // Unanswered / neutral template outline as shown in the mockup
+                  circleStyle = "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-750 hover:bg-slate-200 dark:hover:bg-slate-700";
+                }
+              }
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setSelectedOption(null);
+                    setShowFeedback(false);
+                    setCurrentQuestionIndex(i);
+                  }}
+                  className={`w-full max-w-[36px] sm:max-w-[40px] aspect-square text-xs sm:text-sm rounded-full flex items-center justify-center font-black transition-all active:scale-95 shrink-0 shadow-xs ${circleStyle}`}
+                >
+                  {i + 1}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="w-full max-w-2xl mx-auto px-4 sm:px-0 space-y-4">
           {/* Question Text with distinct background area as requested */}
-          <div className="bg-blue-50/45 dark:bg-slate-950 border border-blue-100/50 dark:border-slate-850 px-4 py-3.5 rounded-xl mb-4 shadow-3xs whitespace-pre-wrap break-words">
+          <div className="bg-blue-50/45 dark:bg-slate-900 border border-blue-100/50 dark:border-slate-850 px-4 sm:px-5 py-4 rounded-2xl shadow-3xs whitespace-pre-wrap break-words">
             <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-relaxed">
               {currentQuestion.question}
             </h3>
           </div>
 
-          <div className="space-y-2 mb-4">
+          <div className="space-y-2.5">
             {currentQuestion.options.map((option, idx) => {
               const isSelected = selectedOption === idx;
               const isCorrect = idx === currentQuestion.correctAnswerIndex;
-              let btnStyle = "bg-slate-50/50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-800";
+              let btnStyle = "bg-slate-50/50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-850";
               
               if (mode === 'PRACTICE' && showFeedback) {
                 // Practice mode instant feedback styling
@@ -737,10 +786,10 @@ const Quiz: React.FC<QuizProps> = ({
                   key={idx} 
                   disabled={mode === 'PRACTICE' && showFeedback} 
                   onClick={() => handleOptionClick(idx)} 
-                  className={`w-full text-left p-3 rounded-xl border transition-all flex items-center group ${btnStyle}`}
+                  className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all flex items-center group ${btnStyle}`}
                 >
-                  <div className={`w-5.5 h-5.5 rounded-lg border flex items-center justify-center mr-2.5 font-black text-[10px] transition-all shrink-0
-                    ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-700 text-slate-400 bg-white dark:bg-slate-800'}
+                  <div className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full border flex items-center justify-center mr-3 font-black text-xs transition-all shrink-0 aspect-square
+                    ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-850'}
                   `}>
                     {String.fromCharCode(65 + idx)}
                   </div>

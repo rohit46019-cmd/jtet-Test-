@@ -26,7 +26,8 @@ import {
   MessageSquare, ArrowRight, Sun, Moon, Maximize, Play, Settings, 
   ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
   ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe,
-  Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw, Brain, CheckSquare
+  Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw, Brain, CheckSquare,
+  Search
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 
@@ -81,6 +82,7 @@ const App: React.FC = () => {
   const [quizToDelete, setQuizToDelete] = useState<string | null>(null);
   const [aiLanguage, setAiLanguage] = useState<string>('English');
   const [quizDifficulty, setQuizDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [librarySearchQuery, setLibrarySearchQuery] = useState<string>('');
 
   // Google Drive Sync states
   const [isDriveConnected, setIsDriveConnected] = useState(googleDriveService.isAuthenticated());
@@ -1663,7 +1665,7 @@ const App: React.FC = () => {
 
             {tab === 'LIBRARY' && (
                <div className="animate-in slide-in-from-bottom-4 pt-2">
-                  <div className="flex flex-col gap-2.5 mb-4">
+                  <div className="flex flex-col gap-3 mb-4">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                       <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Learning Vault (Practice & Tests)</h3>
                       {/* Main Category Filter Pills */}
@@ -1684,6 +1686,32 @@ const App: React.FC = () => {
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    {/* Dynamic Real-time Test Search Bar */}
+                    <div className="relative w-full">
+                      <input
+                        type="text"
+                        value={librarySearchQuery}
+                        onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                        placeholder="Search tests by name..."
+                        className={`w-full pl-8.5 pr-8 py-2 rounded-xl text-xs font-bold outline-none border transition-all ${
+                          isDarkMode 
+                            ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/20' 
+                            : 'bg-white border-slate-200 text-slate-900 placeholder-slate-450 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 shadow-3xs'
+                        }`}
+                      />
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
+                        <Search size={13} />
+                      </div>
+                      {librarySearchQuery && (
+                        <button
+                          onClick={() => setLibrarySearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                        >
+                          <X size={10} />
+                        </button>
+                      )}
                     </div>
 
                     {/* Sub-Category Filter Pills if Main Category selected */}
@@ -1714,7 +1742,8 @@ const App: React.FC = () => {
                       .filter(q => {
                         const matchesMainCat = selectedCategoryFilter === 'ALL' || q.categoryId === selectedCategoryFilter;
                         const matchesSubCat = selectedSubCategoryFilter === 'ALL' || q.subCategoryId === selectedSubCategoryFilter;
-                        return matchesMainCat && matchesSubCat;
+                        const matchesSearch = !librarySearchQuery.trim() || q.title.toLowerCase().includes(librarySearchQuery.toLowerCase());
+                        return matchesMainCat && matchesSubCat && matchesSearch;
                       })
                       .map((q) => {
                         const catObj = categories.find(c => c.id === q.categoryId);
@@ -1818,16 +1847,17 @@ const App: React.FC = () => {
                                    </div>
                                  )}
                                </div>
-                            </div>
+                             </div>
                           </div>
                         );
                       })}
                     {library.filter(q => {
                       const matchesMainCat = selectedCategoryFilter === 'ALL' || q.categoryId === selectedCategoryFilter;
                       const matchesSubCat = selectedSubCategoryFilter === 'ALL' || q.subCategoryId === selectedSubCategoryFilter;
-                      return matchesMainCat && matchesSubCat;
+                      const matchesSearch = !librarySearchQuery.trim() || q.title.toLowerCase().includes(librarySearchQuery.toLowerCase());
+                      return matchesMainCat && matchesSubCat && matchesSearch;
                     }).length === 0 && (
-                      <div className="col-span-full py-12 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">No quizzes found in this category...</div>
+                      <div className="col-span-full py-12 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">No quizzes found matching your filters...</div>
                     )}
                   </div>
                </div>
