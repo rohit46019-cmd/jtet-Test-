@@ -31,6 +31,7 @@ interface LocalData {
   quizzes: any[];
   categories: any[];
   users: any[];
+  reports?: any[];
   settings: { [key: string]: any };
 }
 
@@ -41,7 +42,9 @@ function loadLocalData(): LocalData {
     }
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (!parsed.reports) parsed.reports = [];
+      return parsed;
     }
   } catch (e) {
     console.warn('Failed to read local DB file, using in-memory defaults:', e);
@@ -50,6 +53,7 @@ function loadLocalData(): LocalData {
     quizzes: [],
     categories: [],
     users: [],
+    reports: [],
     settings: {
       quiz_config: {
         positiveMarks: 1,
@@ -225,6 +229,85 @@ app.delete('/api/quizzes/:id', async (req, res) => {
     }
   } catch (err) {
     console.warn('Mongo quiz delete delayed:', err);
+  }
+
+  res.json({ success: true });
+});
+
+// --- REPORTS API ---
+app.get('/api/reports', async (req, res) => {
+  try {
+    const database = await connectToMongoDB();
+    if (database) {
+      const reports = await database.collection('reports').find({}).sort({ timestamp: -1 }).toArray();
+      const formatted = reports.map((r: any) => ({
+        ...r,
+        id: r.id || r._id.toString(),
+        _id: r._id.toString()
+      }));
+      localStore.reports = formatted;
+      saveLocalData();
+      return res.json(formatted);
+    }
+  } catch (err) {
+    console.warn('Mongo fetch reports error, falling back to local:', err);
+  }
+  res.json(localStore.reports || []);
+});
+
+app.post('/api/reports', async (req, res) => {
+  const report = req.body;
+  const reportId = report.id || new ObjectId().toString();
+  const docToSave = {
+    ...report,
+    id: reportId,
+    timestamp: report.timestamp || Date.now(),
+    status: report.status || 'pending'
+  };
+
+  try {
+    const database = await connectToMongoDB();
+    if (database) {
+      await database.collection('reports').updateOne(
+        { id: reportId },
+        { $set: docToSave },
+        { upsert: true }
+      );
+    }
+  } catch (err) {
+    console.warn('Mongo save report error:', err);
+  }
+
+  if (!localStore.reports) localStore.reports = [];
+  const existingIdx = localStore.reports.findIndex(r => r.id === reportId);
+  if (existingIdx >= 0) {
+    localStore.reports[existingIdx] = docToSave;
+  } else {
+    localStore.reports.unshift(docToSave);
+  }
+  saveLocalData();
+
+  res.json(docToSave);
+});
+
+app.delete('/api/reports/:id', async (req, res) => {
+  const { id } = req.params;
+  if (localStore.reports) {
+    localStore.reports = localStore.reports.filter(r => r.id !== id);
+    saveLocalData();
+  }
+
+  try {
+    const database = await connectToMongoDB();
+    if (database) {
+      let filter: any = { id };
+      if (ObjectId.isValid(id)) {
+        filter = { $or: [{ id }, { _id: new ObjectId(id) }] };
+      }
+      await database.collection('reports').deleteOne(filter);
+    }
+  } catch (err) {
+    console.warn('Mongo report delete delayed:', err);
   }
 
   res.json({ success: true });

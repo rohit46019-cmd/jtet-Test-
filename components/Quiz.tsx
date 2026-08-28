@@ -53,30 +53,46 @@ const DecoratedExplanation: React.FC<{
 }> = ({ explanation, onAskAi }) => {
   if (!explanation && !onAskAi) return null;
 
-  const rawLines = (explanation || '').split(/\n+/).map(l => l.trim()).filter(Boolean);
+  // Split by individual newline characters to accurately preserve line breaks and paragraphs
+  const rawLines = (explanation || '').split('\n').map(l => l.trim());
 
   let lines: string[] = [];
+  // If it's a massive block of text without list items, parse it nicely
   if (rawLines.length === 1 && rawLines[0].length > 100 && !rawLines[0].includes('•')) {
     const sentences = rawLines[0].split(/(?<=\.)\s+/);
     lines.push(`**Core Concept:** ${sentences[0]}`);
     if (sentences.length > 1) {
+      lines.push(''); // add a beautiful spacer line
       lines.push(`**Why Correct:** ${sentences.slice(1, Math.min(3, sentences.length)).join(' ')}`);
     }
     if (sentences.length > 3) {
+      lines.push(''); // add another spacer line
       lines.push(`• **Key Takeaway:** ${sentences.slice(3).join(' ')}`);
     }
   } else {
-    lines = rawLines;
+    // Collapse consecutive duplicate empty lines for clean formatting, but preserve single empty lines for spacing
+    let lastWasEmpty = false;
+    for (const rawLine of rawLines) {
+      if (rawLine === '') {
+        if (!lastWasEmpty) {
+          lines.push('');
+          lastWasEmpty = true;
+        }
+      } else {
+        lines.push(rawLine);
+        lastWasEmpty = false;
+      }
+    }
   }
 
   return (
-    <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50/90 via-indigo-50/40 to-slate-50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 shadow-sm animate-in fade-in slide-in-from-bottom-2 mb-4 text-left">
-      <div className="flex items-center justify-between mb-2.5 border-b border-blue-100 dark:border-slate-800 pb-2 flex-wrap gap-1.5">
+    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-50/90 via-indigo-50/40 to-slate-50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 shadow-md animate-in fade-in slide-in-from-bottom-2 mb-4 text-left select-text">
+      <div className="flex items-center justify-between mb-3.5 border-b border-blue-100 dark:border-slate-800 pb-2.5 flex-wrap gap-1.5">
         <div className="flex items-center gap-1.5">
           <div className="p-1 bg-blue-600 text-white rounded-md shadow-2xs">
             <Sparkles size={12} />
           </div>
-          <span className="font-black text-[9px] uppercase tracking-widest text-blue-700 dark:text-blue-400">
+          <span className="font-black text-[10px] uppercase tracking-widest text-blue-700 dark:text-blue-400">
             Key Insights & Explanation
           </span>
         </div>
@@ -91,36 +107,41 @@ const DecoratedExplanation: React.FC<{
               <span>Instant AI Explanation</span>
             </button>
           )}
-          <span className="text-[7.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60">
+          <span className="text-[8px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60 animate-pulse">
             Smart Summary
           </span>
         </div>
       </div>
 
-      <div className="space-y-2 text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed">
+      <div className="space-y-2.5 text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
         {lines.map((line, idx) => {
+          // If it is an empty line, render a beautiful paragraph spacer block
+          if (line === '') {
+            return <div key={idx} className="h-3" />;
+          }
+
           const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('* ');
           const cleanLine = isBullet ? line.replace(/^[•\-*]\s*/, '') : line;
 
           if (isBullet) {
             return (
-              <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-blue-100 dark:border-slate-800 shadow-2xs transition-all">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 mt-1 shrink-0" />
-                <div className="flex-1 font-medium text-[11px]">{renderFormattedText(cleanLine)}</div>
+              <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-blue-100 dark:border-slate-800 shadow-2xs transition-all select-text">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 mt-1.5 shrink-0" />
+                <div className="flex-1 font-semibold text-xs sm:text-[13px] leading-relaxed text-slate-800 dark:text-slate-200">{renderFormattedText(cleanLine)}</div>
               </div>
             );
           }
 
           if (cleanLine.startsWith('**') || cleanLine.startsWith('#')) {
             return (
-              <div key={idx} className="p-2 rounded-lg bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100/80 dark:border-blue-900/40">
-                <div className="font-semibold text-[11px]">{renderFormattedText(cleanLine)}</div>
+              <div key={idx} className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100/80 dark:border-blue-900/40 select-text">
+                <div className="font-bold text-xs sm:text-[13px] text-blue-950 dark:text-blue-200 leading-relaxed">{renderFormattedText(cleanLine)}</div>
               </div>
             );
           }
 
           return (
-            <div key={idx} className="p-1 font-medium leading-relaxed text-[11px]">
+            <div key={idx} className="p-1 font-semibold leading-relaxed text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 break-words whitespace-pre-wrap select-text">
               {renderFormattedText(cleanLine)}
             </div>
           );
@@ -204,6 +225,27 @@ const Quiz: React.FC<QuizProps> = ({
       setIsAuditingReport(true);
       setReportError(null);
       setReportAuditResult(null);
+
+      // Log report to MongoDB/local server database first
+      const reportPayload = {
+        id: crypto.randomUUID(),
+        quizId: currentQuiz.id,
+        quizTitle: currentQuiz.title || 'Untitled Quiz',
+        questionId: currentQuestion.id,
+        questionText: currentQuestion.question,
+        options: currentQuestion.options,
+        correctAnswerIndex: currentQuestion.correctAnswerIndex,
+        explanation: currentQuestion.explanation,
+        reason: reportReason,
+        timestamp: Date.now(),
+        status: 'pending'
+      };
+
+      fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportPayload)
+      }).catch(err => console.warn('Failed to log report:', err));
 
       // Trigger Gemini AI audit on reported question
       const auditRes = await auditAndFixQuizQuestions([currentQuestion], currentQuiz.language || 'Hindi/English');
@@ -508,46 +550,44 @@ const Quiz: React.FC<QuizProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-[#fcfdfe] dark:bg-slate-950 text-xs select-none">
-      {/* Top Navigation Bar */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-2 shadow-2xs">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-[#fcfdfe] dark:bg-slate-950 text-xs select-text">
+      {/* Top Navigation Bar with premium dark focus styling */}
+      <div className="bg-slate-900 text-white dark:bg-slate-950 border-b border-slate-800 px-4 py-2.5 shadow-md">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setShowPalette(!showPalette)} 
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-blue-100 transition-all border border-blue-200/50 dark:border-blue-800/50"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/25 active:scale-95 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border border-blue-500/30 shadow-xs"
+              title="Open Question Navigator"
             >
-              Q: {currentQuestionIndex + 1}{quiz.isInfinite ? "" : `/${quiz.questions.length}`}
+              <HelpCircle size={12} className="text-blue-400 animate-pulse" />
+              <span>Q: {currentQuestionIndex + 1}{quiz.isInfinite ? "" : ` / ${quiz.questions.length}`}</span>
             </button>
 
             {/* Mode Badge */}
-            <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
-              mode === 'PRACTICE' 
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40' 
-                : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40'
-            }`}>
+            <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-slate-800 text-indigo-400 border border-slate-700`}>
               {mode === 'PRACTICE' ? <Sparkles size={10} /> : <CheckSquare size={10} />}
               {mode === 'PRACTICE' ? 'Practice Mode' : 'Quiz Exam Mode'}
             </span>
 
             {/* Timer Display */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-extrabold text-[10px] border border-blue-200/50 dark:border-blue-800/50">
-              <Timer size={13} className="text-blue-500 animate-pulse shrink-0" />
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-emerald-400 font-extrabold text-[10px] border border-slate-700">
+              <Timer size={13} className="text-emerald-400 animate-pulse shrink-0" />
               <span>
                 {totalSecondsAllowed > 0 
                   ? `Remaining: ${formatTime(remainingSeconds)}` 
                   : formatTime(timer)}
               </span>
               {effectiveTimePerQ > 0 && (
-                <span className={`ml-1 pl-1.5 border-l border-blue-200 dark:border-blue-800 font-mono text-[9px] ${questionTimer <= 5 ? 'text-rose-500 font-black animate-pulse' : 'text-slate-500 dark:text-slate-400'}`}>
+                <span className={`ml-1 pl-1.5 border-l border-slate-750 font-mono text-[9px] ${questionTimer <= 5 ? 'text-rose-500 font-black animate-pulse' : 'text-slate-400'}`}>
                   {questionTimer}s
                 </span>
               )}
             </div>
           </div>
           
-          <div className="flex-1 max-w-xs h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mx-2 hidden md:block">
-            <div className={`h-full bg-blue-600 transition-all duration-500 ${quiz.isInfinite ? 'animate-pulse' : ''}`} style={{ width: `${progressPercent}%` }} />
+          <div className="flex-1 max-w-xs h-1 bg-slate-800 rounded-full overflow-hidden mx-2 hidden md:block">
+            <div className={`h-full bg-blue-500 transition-all duration-500 ${quiz.isInfinite ? 'animate-pulse' : ''}`} style={{ width: `${progressPercent}%` }} />
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -556,7 +596,7 @@ const Quiz: React.FC<QuizProps> = ({
               className={`px-2.5 py-1 rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center gap-1 transition-all ${
                 isPaused 
                   ? 'bg-amber-500 text-white animate-bounce shadow-md' 
-                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100'
+                  : 'bg-slate-800 text-amber-400 border border-slate-700 hover:bg-slate-700'
               }`}
               title={isPaused ? "Resume Test" : "Pause Test"}
             >
@@ -564,14 +604,8 @@ const Quiz: React.FC<QuizProps> = ({
               <span>{isPaused ? 'Resume' : 'Pause'}</span>
             </button>
             <button 
-              onClick={() => setShowSubmitConfirm(true)}
-              className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-[9px] uppercase tracking-wider rounded-xl shadow-sm hover:from-emerald-700 hover:to-teal-700 active:scale-95 transition-all"
-            >
-              Submit Test
-            </button>
-            <button 
               onClick={toggleFullscreen}
-              className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-blue-600 transition-all hidden sm:block"
+              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-blue-400 transition-all hidden sm:block border border-slate-700"
               title="Fullscreen"
             >
               <Maximize2 size={15} />
@@ -592,11 +626,10 @@ const Quiz: React.FC<QuizProps> = ({
               <span className="hidden sm:inline">Report</span>
             </button>
             <button 
-              onClick={() => setShowExitConfirm(true)} 
-              className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
-              title="Exit Test"
+              onClick={() => setShowSubmitConfirm(true)}
+              className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl shadow-md hover:from-emerald-600 hover:to-teal-600 active:scale-95 transition-all"
             >
-              <LogOut size={15} />
+              Submit Test
             </button>
           </div>
         </div>
@@ -652,31 +685,36 @@ const Quiz: React.FC<QuizProps> = ({
           </div>
         )}
 
-        <div className="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5">
-          {/* Quiz Name Box */}
-          <div className="mb-3.5 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+        {/* Quiz Name Box (moved slightly up as requested) */}
+        <div className="max-w-md mx-auto mb-3">
+          <div className="px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
               <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
                 {quiz.title}
               </span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className={`px-2 py-0.5 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 text-[7.5px] font-black uppercase tracking-widest rounded-md ${quiz.isInfinite ? 'animate-pulse' : ''}`}>
+              <span className={`px-2 py-0.5 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 text-[8px] font-black uppercase tracking-widest rounded-md ${quiz.isInfinite ? 'animate-pulse' : ''}`}>
                 {mode === 'PRACTICE' ? 'Practice Mode' : 'Quiz Exam Mode'}
               </span>
               {quiz.isInfinite && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[7.5px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-900/40">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-900/40">
                   <Sparkles size={8} className="animate-spin" />
                   {isFetchingNext ? "Buffering..." : `${Math.max(0, quiz.questions.length - (currentQuestionIndex + 1))} Backup`}
                 </span>
               )}
             </div>
           </div>
+        </div>
 
-          <h3 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white mb-3.5 leading-snug">
-            {currentQuestion.question}
-          </h3>
+        <div className="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5">
+          {/* Question Text with distinct background area as requested */}
+          <div className="bg-blue-50/45 dark:bg-slate-950 border border-blue-100/50 dark:border-slate-850 px-4 py-3.5 rounded-xl mb-4 shadow-3xs whitespace-pre-wrap break-words">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-relaxed">
+              {currentQuestion.question}
+            </h3>
+          </div>
 
           <div className="space-y-2 mb-4">
             {currentQuestion.options.map((option, idx) => {
@@ -699,14 +737,14 @@ const Quiz: React.FC<QuizProps> = ({
                   key={idx} 
                   disabled={mode === 'PRACTICE' && showFeedback} 
                   onClick={() => handleOptionClick(idx)} 
-                  className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center group ${btnStyle}`}
+                  className={`w-full text-left p-3 rounded-xl border transition-all flex items-center group ${btnStyle}`}
                 >
-                  <div className={`w-5 h-5 rounded-lg border flex items-center justify-center mr-2.5 font-black text-[9px] transition-all shrink-0
+                  <div className={`w-5.5 h-5.5 rounded-lg border flex items-center justify-center mr-2.5 font-black text-[10px] transition-all shrink-0
                     ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-700 text-slate-400 bg-white dark:bg-slate-800'}
                   `}>
                     {String.fromCharCode(65 + idx)}
                   </div>
-                  <span className="font-medium text-[11px] sm:text-xs leading-snug flex-1 text-slate-800 dark:text-slate-200">{option}</span>
+                  <span className="font-semibold text-xs sm:text-sm leading-snug flex-1 text-slate-800 dark:text-slate-200">{option}</span>
                   {mode === 'TEST' && isSelected && (
                     <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider ml-2">Selected</span>
                   )}
