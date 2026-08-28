@@ -26,8 +26,29 @@ interface QuizProps {
   initialTimer?: number;
 }
 
+const normalizeExplanationText = (text: string): string => {
+  if (!text) return '';
+  return text
+    // Replace escaped newlines (e.g. "\\n" literal) with real newlines
+    .replace(/\\n/g, '\n')
+    // Replace literal "/n" or "/N" separators (e.g. "fact /n fact") with newlines
+    .replace(/(?:\s*\/n\s*|\s*\/N\s*)+/g, '\n\n')
+    // Replace HTML break tags with newlines
+    .replace(/<br\s*\/?>/gi, '\n')
+    // Normalize carriage returns
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim();
+};
+
 const renderFormattedText = (text: string) => {
-  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+  if (!text) return null;
+  // Clean any remaining raw escaped newline codes or /n inside the snippet
+  const cleaned = text
+    .replace(/\\n/g, ' ')
+    .replace(/(?:\s*\/n\s*|\s*\/N\s*)/g, ' ');
+
+  const parts = cleaned.split(/(\*\*.*?\*\*|\*.*?\*)/g);
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
@@ -53,11 +74,11 @@ const DecoratedExplanation: React.FC<{
 }> = ({ explanation, onAskAi }) => {
   if (!explanation && !onAskAi) return null;
 
-  // Process the explanation text to break it down into clean visual segments
-  const rawText = explanation || '';
+  // Process and unescape all newline patterns (\n, \\n, /n, <br>)
+  const normalizedText = normalizeExplanationText(explanation || '');
   
-  // Split the explanation by lines or paragraphs for structured parsing
-  const rawSegments = rawText
+  // Split the explanation by distinct paragraph blocks
+  const rawSegments = normalizedText
     .split(/\n+/)
     .map(s => s.trim())
     .filter(s => s.length > 0);
@@ -71,9 +92,9 @@ const DecoratedExplanation: React.FC<{
   rawSegments.forEach(segment => {
     const lower = segment.toLowerCase();
     
-    // Check if it's already a bullet list
-    const isBullet = segment.startsWith('•') || segment.startsWith('-') || segment.startsWith('*') || /^\d+\.\s+/.test(segment);
-    const cleanSegment = isBullet ? segment.replace(/^[•\-\*\d\.]\s*/, '') : segment;
+    // Check if it's already a bullet list or numbered item
+    const isBullet = segment.startsWith('•') || segment.startsWith('-') || segment.startsWith('*') || /^\d+[\.\)]\s+/.test(segment);
+    const cleanSegment = isBullet ? segment.replace(/^[•\-\*\d\.\)]\s*/, '') : segment;
 
     if (isBullet) {
       bulletSegments.push(cleanSegment);
@@ -82,7 +103,8 @@ const DecoratedExplanation: React.FC<{
       lower.includes('is correct') || 
       lower.includes('correct option') || 
       lower.includes('correct choice') || 
-      lower.includes('right answer')
+      lower.includes('right answer') ||
+      lower.startsWith('correct:')
     ) {
       correctOptionSegments.push(cleanSegment);
     } else if (
@@ -90,7 +112,8 @@ const DecoratedExplanation: React.FC<{
       lower.includes('is incorrect') || 
       lower.includes('incorrect option') || 
       lower.includes('wrong option') || 
-      lower.includes('not correct')
+      lower.includes('not correct') ||
+      lower.startsWith('incorrect:')
     ) {
       incorrectOptionSegments.push(cleanSegment);
     } else {
@@ -144,18 +167,18 @@ const DecoratedExplanation: React.FC<{
       {/* Main Content Area */}
       <div className="space-y-4">
         
-        {/* 1. Core Conceptual Takeaway */}
+        {/* 1. Core Conceptual Takeaways (Distinct Paragraphs) */}
         {conceptualSegments.length > 0 && (
-          <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+          <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
               <h5 className="font-black text-[11px] uppercase tracking-wider text-blue-700 dark:text-blue-400">
                 📌 Core Lesson & Concept
               </h5>
             </div>
             <div className="space-y-2.5 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
               {conceptualSegments.map((segment, idx) => (
-                <p key={idx} className="break-words">
+                <p key={idx} className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-blue-100/80 dark:border-blue-900/30 break-words shadow-2xs">
                   {renderFormattedText(segment)}
                 </p>
               ))}
@@ -165,9 +188,9 @@ const DecoratedExplanation: React.FC<{
 
         {/* 2. Correct Option Analysis */}
         {correctOptionSegments.length > 0 && (
-          <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/15 rounded-2xl border-2 border-emerald-100 dark:border-emerald-900/30">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-[10px]">
+          <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/15 rounded-2xl border-2 border-emerald-100 dark:border-emerald-900/30 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-[10px] shrink-0">
                 ✓
               </div>
               <h5 className="font-black text-[11px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
@@ -176,9 +199,9 @@ const DecoratedExplanation: React.FC<{
             </div>
             <div className="space-y-2 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
               {correctOptionSegments.map((segment, idx) => (
-                <p key={idx} className="break-words">
+                <div key={idx} className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-emerald-100/80 dark:border-emerald-900/30 break-words shadow-2xs">
                   {renderFormattedText(segment)}
-                </p>
+                </div>
               ))}
             </div>
           </div>
@@ -186,9 +209,9 @@ const DecoratedExplanation: React.FC<{
 
         {/* 3. Incorrect Option Breakdown */}
         {incorrectOptionSegments.length > 0 && (
-          <div className="p-4 bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl border-2 border-rose-100 dark:border-rose-900/20">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center font-black text-[10px]">
+          <div className="p-4 bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl border-2 border-rose-100 dark:border-rose-900/20 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center font-black text-[10px] shrink-0">
                 ✗
               </div>
               <h5 className="font-black text-[11px] uppercase tracking-wider text-rose-700 dark:text-rose-400">
@@ -197,9 +220,9 @@ const DecoratedExplanation: React.FC<{
             </div>
             <div className="space-y-2 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
               {incorrectOptionSegments.map((segment, idx) => (
-                <p key={idx} className="break-words">
+                <div key={idx} className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-rose-100/80 dark:border-rose-900/30 break-words shadow-2xs">
                   {renderFormattedText(segment)}
-                </p>
+                </div>
               ))}
             </div>
           </div>
@@ -207,16 +230,16 @@ const DecoratedExplanation: React.FC<{
 
         {/* 4. List Items / Key Points */}
         {bulletSegments.length > 0 && (
-          <div className="p-4 bg-slate-100/50 dark:bg-slate-800/30 rounded-2xl border border-slate-200/80 dark:border-slate-800">
-            <div className="flex items-center gap-2 mb-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+          <div className="p-4 bg-slate-100/50 dark:bg-slate-800/30 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" />
               <h5 className="font-black text-[11px] uppercase tracking-wider text-slate-700 dark:text-slate-400">
                 💡 Key Insights & Takeaways
               </h5>
             </div>
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {bulletSegments.map((segment, idx) => (
-                <div key={idx} className="flex items-start gap-2.5 text-xs sm:text-[13px] font-medium leading-relaxed text-slate-800 dark:text-slate-200 select-text">
+                <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-white/60 dark:bg-slate-900/40 rounded-xl border border-slate-200/60 dark:border-slate-800 text-xs sm:text-[13px] font-medium leading-relaxed text-slate-800 dark:text-slate-200 select-text">
                   <span className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0 shadow-sm animate-pulse" />
                   <div className="flex-1 break-words">
                     {renderFormattedText(segment)}

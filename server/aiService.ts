@@ -5,8 +5,10 @@ export const PRIMARY_MODEL = 'gemini-3.5-flash';
 export const FALLBACK_MODELS = [
   'gemini-3.7-flash',
   'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
   'gemini-flash-latest',
   'gemini-3.6-flash',
+  'gemini-2.5-pro',
   'gemini-3.1-pro-preview'
 ];
 
@@ -118,7 +120,7 @@ async function generateWithFallback(
     } catch (err: any) {
       lastErr = err;
       const errMsg = String(err?.message || err);
-      console.warn(`[AI Backend] Model ${model} failed (${errMsg}). Trying fallback model...`);
+      console.log(`[AI Backend] Model ${model} failed (${errMsg}). Trying fallback model...`);
       if (
         errMsg.includes('not found') ||
         errMsg.includes('no longer available') ||
@@ -174,14 +176,14 @@ async function executeWithRetry<T>(
         if (code === 429 || code === 503) {
           if (attempt < MAX_RETRIES_PER_KEY - 1) {
             const delay = Math.pow(2, attempt) * 600 + Math.random() * 400;
-            console.warn(`[AI Backend] Gemini API warning (${code}: ${message}). Retrying attempt ${attempt + 1}/${MAX_RETRIES_PER_KEY} in ${Math.round(delay)}ms...`);
+            console.log(`[AI Backend] Gemini API warning (${code}: ${message}). Retrying attempt ${attempt + 1}/${MAX_RETRIES_PER_KEY} in ${Math.round(delay)}ms...`);
             await sleep(delay);
             continue;
           }
         }
 
         // On 403 or exhausted retries, try next key
-        console.warn(`[AI Backend] Key failed with ${code}: ${message}. Trying fallback key if available...`);
+        console.log(`[AI Backend] Key failed with ${code}: ${message}. Trying fallback key if available...`);
         break;
       }
     }
