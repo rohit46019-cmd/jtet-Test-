@@ -803,10 +803,38 @@ const App: React.FC = () => {
             existingIds.add(id);
             return { ...q, id };
           });
-          return {
+          
+          const updatedQuiz = {
             ...prev,
             questions: [...prev.questions, ...uniqueNewQuestions]
           };
+
+          // Automatically save newly generated questions to library & local storage
+          setLibrary(prevLib => {
+            const exists = prevLib.some(lq => lq.id === updatedQuiz.id);
+            let updatedLib: StoredQuiz[];
+            if (exists) {
+              updatedLib = prevLib.map(lq => lq.id === updatedQuiz.id ? { ...lq, ...updatedQuiz, questions: updatedQuiz.questions } : lq);
+            } else {
+              const newStored: StoredQuiz = {
+                ...updatedQuiz,
+                createdAt: updatedQuiz.createdAt || Date.now()
+              };
+              updatedLib = [newStored, ...prevLib];
+            }
+            localStorage.setItem('qf_lib_v4', JSON.stringify(updatedLib));
+            localStorage.setItem('quizzly_library', JSON.stringify(updatedLib));
+            return updatedLib;
+          });
+
+          // Sync updated quiz questions with database
+          fetch(`/api/quizzes/${updatedQuiz.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedQuiz)
+          }).catch(err => console.warn("Failed to sync infinite quiz progress to database", err));
+
+          return updatedQuiz;
         });
       }
     } catch (err: any) {
