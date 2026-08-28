@@ -2226,6 +2226,10 @@ const App: React.FC = () => {
         <PhoneStorageModal
           isOpen={showPhoneStorageModal}
           onClose={() => setShowPhoneStorageModal(false)}
+          isDarkMode={isDarkMode}
+          library={library}
+          bookmarks={bookmarks}
+          categories={categories}
           onPermissionChanged={(granted) => {
             setStoragePermissionGranted(granted);
             if (granted) {
