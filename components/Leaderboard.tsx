@@ -91,31 +91,31 @@ export default function Leaderboard() {
 
       {/* Current User High-Level Rank Summary Card */}
       {currentUser && (
-        <div className="mb-6 p-5 rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-xl flex items-center justify-between gap-4 border-2 border-black">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl font-black border border-white/20 shadow-inner">
+        <div className="mb-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-2 border-black">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-lg sm:text-xl font-black border border-white/20 shadow-inner shrink-0">
               {userRankIndex !== -1 ? `#${userRankIndex + 1}` : '—'}
             </div>
-            <div>
-              <h4 className="font-black text-sm text-white flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <h4 className="font-black text-sm text-white flex items-center gap-2 truncate">
                 Your Rank Position {userRankIndex === 0 && '👑 #1 Leader!'}
               </h4>
-              <p className="text-[11px] text-blue-100 font-medium mt-0.5">
+              <p className="text-[11px] text-blue-100 font-bold mt-0.5 truncate">
                 {currentUserData?.name || currentUser.displayName || currentUser.email?.split('@')[0]}
               </p>
-              <div className="flex items-center gap-3 text-[10px] text-blue-100 font-bold mt-1.5">
-                <span className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center gap-3 text-[10px] text-blue-100 font-bold mt-1.5">
+                <span className="flex items-center gap-1 shrink-0">
                   <Target size={12} /> {currentUserData?.questionsAttempted || 0} Attempted
                 </span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 shrink-0">
                   <Clock size={12} /> {formatDuration(currentUserData?.totalTimeSpent)} Spent
                 </span>
               </div>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right shrink-0 pt-2 sm:pt-0 border-t border-white/10 sm:border-0">
             <div className="text-2xl font-black tracking-tight">{currentUserData?.totalPoints || 0} <span className="text-xs font-bold text-yellow-300">PTS</span></div>
-            <div className="text-[10px] text-blue-100 font-semibold uppercase tracking-wider flex items-center gap-1 justify-end">
+            <div className="text-[10px] text-blue-100 font-semibold uppercase tracking-wider flex items-center gap-1 justify-start sm:justify-end mt-0.5">
               <CheckCircle2 size={12} /> {currentUserData?.correctAnswers || 0} Correct Marks
             </div>
           </div>
@@ -157,7 +157,7 @@ export default function Leaderboard() {
                     {u.name ? u.name.charAt(0) : (u.email ? u.email.charAt(0) : 'U')}
                   </div>
                   
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 min-w-0 overflow-hidden">
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold truncate text-sm sm:text-base text-slate-900 dark:text-white">
                         {u.name || u.email?.split('@')[0] || 'Anonymous'}

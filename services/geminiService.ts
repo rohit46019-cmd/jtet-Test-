@@ -103,6 +103,7 @@ export async function generateBatchQuestions(
   language: string = 'English',
   difficulty: 'easy' | 'medium' | 'hard' = 'medium'
 ): Promise<Question[]> {
+  let backendError = '';
   try {
     const res = await fetch('/api/ai/generate-batch', {
       method: 'POST',
@@ -113,45 +114,58 @@ export async function generateBatchQuestions(
     if (res.ok) {
       const data = await res.json();
       return data.questions || [];
+    } else {
+      try {
+        const errorData = await res.json();
+        if (errorData?.error) {
+          backendError = errorData.error;
+        }
+      } catch (_) {}
     }
-  } catch (_) {}
+  } catch (err: any) {
+    backendError = err?.message || String(err);
+  }
 
   // Client-side fallback if backend fails or on Vercel
   const clientKeys = getClientGenAIKeys();
   if (clientKeys.length > 0) {
-    const ai = new GoogleGenAI({ apiKey: clientKeys[0] });
-    const response = await ai.models.generateContent({
-      model: PRIMARY_MODEL,
-      contents: `Generate exactly ${count} unique MCQ questions on topic: "${prompt}". Return valid JSON with questions array.`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            questions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  correctAnswerIndex: { type: Type.INTEGER },
-                  explanation: { type: Type.STRING }
-                },
-                required: ['question', 'options', 'correctAnswerIndex', 'explanation']
+    try {
+      const ai = new GoogleGenAI({ apiKey: clientKeys[0] });
+      const response = await ai.models.generateContent({
+        model: PRIMARY_MODEL,
+        contents: `Generate exactly ${count} unique MCQ questions on topic: "${prompt}". Return valid JSON with questions array.`,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    correctAnswerIndex: { type: Type.INTEGER },
+                    explanation: { type: Type.STRING }
+                  },
+                  required: ['question', 'options', 'correctAnswerIndex', 'explanation']
+                }
               }
-            }
-          },
-          required: ['questions']
+            },
+            required: ['questions']
+          }
         }
-      }
-    });
-    const parsed = JSON.parse(response.text || '{}');
-    return (parsed.questions || []).map((q: any) => ({ ...q, id: crypto.randomUUID() }));
+      });
+      const parsed = JSON.parse(response.text || '{}');
+      return (parsed.questions || []).map((q: any) => ({ ...q, id: crypto.randomUUID() }));
+    } catch (clientErr: any) {
+      throw new Error(`Client-side fallback also failed: ${clientErr.message || clientErr}`);
+    }
   }
 
-  throw new Error('Failed to generate batch questions. Please check API key in Settings.');
+  throw new Error(backendError ? `AI Generation Error: ${backendError}` : 'Failed to generate batch questions. Please check API key in Settings.');
 }
 
 /**

@@ -53,14 +53,56 @@ const DecoratedExplanation: React.FC<{
 }> = ({ explanation, onAskAi }) => {
   if (!explanation && !onAskAi) return null;
 
-  // Split by double newline or single newline to parse paragraphs nicely
-  const paragraphs = (explanation || '')
-    .split(/\n\s*\n/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0);
+  // Process the explanation text to break it down into clean visual segments
+  const rawText = explanation || '';
+  
+  // Split the explanation by lines or paragraphs for structured parsing
+  const rawSegments = rawText
+    .split(/\n+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
+  // Categorize segments to structure them beautifully
+  const correctOptionSegments: string[] = [];
+  const incorrectOptionSegments: string[] = [];
+  const bulletSegments: string[] = [];
+  const conceptualSegments: string[] = [];
+
+  rawSegments.forEach(segment => {
+    const lower = segment.toLowerCase();
+    
+    // Check if it's already a bullet list
+    const isBullet = segment.startsWith('•') || segment.startsWith('-') || segment.startsWith('*') || /^\d+\.\s+/.test(segment);
+    const cleanSegment = isBullet ? segment.replace(/^[•\-\*\d\.]\s*/, '') : segment;
+
+    if (isBullet) {
+      bulletSegments.push(cleanSegment);
+    } else if (
+      lower.includes('correct because') || 
+      lower.includes('is correct') || 
+      lower.includes('correct option') || 
+      lower.includes('correct choice') || 
+      lower.includes('right answer')
+    ) {
+      correctOptionSegments.push(cleanSegment);
+    } else if (
+      lower.includes('incorrect because') || 
+      lower.includes('is incorrect') || 
+      lower.includes('incorrect option') || 
+      lower.includes('wrong option') || 
+      lower.includes('not correct')
+    ) {
+      incorrectOptionSegments.push(cleanSegment);
+    } else {
+      conceptualSegments.push(cleanSegment);
+    }
+  });
 
   return (
-    <div className="p-4 sm:p-5.5 rounded-2xl bg-gradient-to-br from-indigo-50/80 via-blue-50/40 to-slate-50 dark:from-slate-900 dark:via-blue-950/30 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 shadow-md animate-in fade-in slide-in-from-bottom-2 mb-4 text-left select-text">
+    <div className="p-5 sm:p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in slide-in-from-bottom-2 mb-6 text-left select-text relative overflow-hidden">
+      {/* Decorative Top Accent Tag */}
+      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-400 via-blue-500 to-indigo-500" />
+      
       {/* Dynamic styles to ensure the scrollbar is completely invisible across all devices */}
       <style dangerouslySetInnerHTML={{__html: `
         .no-scrollbar::-webkit-scrollbar {
@@ -72,73 +114,119 @@ const DecoratedExplanation: React.FC<{
         }
       `}} />
 
-      <div className="flex items-center justify-between mb-4 border-b border-blue-100/80 dark:border-slate-800/85 pb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-1.5">
-          <div className="p-1 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm">
-            <Brain size={14} className="animate-pulse" />
+      {/* Header Section */}
+      <div className="flex items-center justify-between mb-5 border-b-2 border-slate-200 dark:border-slate-800 pb-3.5 flex-wrap gap-2 mt-1">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-blue-600 text-white rounded-xl shadow-md border border-black">
+            <Brain size={16} className="animate-pulse" />
           </div>
           <div>
-            <span className="font-black text-xs uppercase tracking-wider text-blue-700 dark:text-blue-400 block">
+            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white block">
               Explanation & Insights
             </span>
-            <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold block mt-0.5">Learn the concept step-by-step</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">
+              Concept breakdown and structured analysis
+            </span>
           </div>
         </div>
         
-        <div className="flex items-center gap-1.5">
-          {onAskAi && (
-            <button
-              onClick={onAskAi}
-              className="flex items-center gap-1 px-3 py-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-[9px] uppercase tracking-wider shadow-sm active:scale-95 transition-all"
-            >
-              <Sparkles size={11} className="animate-pulse" />
-              <span>Ask AI Helper</span>
-            </button>
-          )}
-        </div>
+        {onAskAi && (
+          <button
+            onClick={onAskAi}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-[10px] uppercase tracking-wider border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+          >
+            <Sparkles size={11} className="animate-pulse" />
+            <span>Ask AI Assistant</span>
+          </button>
+        )}
       </div>
 
-      <div className="space-y-3.5 text-xs sm:text-[13px] text-slate-750 dark:text-slate-200 leading-relaxed font-semibold">
-        {paragraphs.map((paragraph, pIdx) => {
-          const lines = paragraph.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-          const hasBullet = lines.some(l => l.startsWith('•') || l.startsWith('-') || l.startsWith('*'));
+      {/* Main Content Area */}
+      <div className="space-y-4">
+        
+        {/* 1. Core Conceptual Takeaway */}
+        {conceptualSegments.length > 0 && (
+          <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              <h5 className="font-black text-[11px] uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                📌 Core Lesson & Concept
+              </h5>
+            </div>
+            <div className="space-y-2.5 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
+              {conceptualSegments.map((segment, idx) => (
+                <p key={idx} className="break-words">
+                  {renderFormattedText(segment)}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
-          if (lines.length > 1 && hasBullet) {
-            return (
-              <div key={pIdx} className="space-y-2 bg-white/70 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-3xs">
-                {lines.map((line, lIdx) => {
-                  const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('* ');
-                  const cleanLine = isBullet ? line.replace(/^[•\-*]\s*/, '') : line;
-                  
-                  return (
-                    <div key={lIdx} className="flex items-start gap-2.5 p-1 select-text">
-                      <span className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400 mt-1.5 shrink-0 shadow-3xs" />
-                      <div className="flex-1 text-slate-800 dark:text-slate-200 leading-relaxed">
-                        {renderFormattedText(cleanLine)}
-                      </div>
-                    </div>
-                  );
-                })}
+        {/* 2. Correct Option Analysis */}
+        {correctOptionSegments.length > 0 && (
+          <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/15 rounded-2xl border-2 border-emerald-100 dark:border-emerald-900/30">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-[10px]">
+                ✓
               </div>
-            );
-          }
+              <h5 className="font-black text-[11px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                ✅ Why It Is Correct
+              </h5>
+            </div>
+            <div className="space-y-2 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
+              {correctOptionSegments.map((segment, idx) => (
+                <p key={idx} className="break-words">
+                  {renderFormattedText(segment)}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
-          // Render heading-like blocks or key concepts nicely
-          const isHeading = paragraph.startsWith('**') && paragraph.endsWith('**') && paragraph.length < 60;
-          if (isHeading) {
-            return (
-              <h4 key={pIdx} className="font-extrabold text-blue-900 dark:text-blue-100 text-xs sm:text-[13px] bg-blue-100/50 dark:bg-blue-950/40 px-3.5 py-1.5 rounded-xl border border-blue-200/50 dark:border-blue-900/30 shadow-4xs inline-block">
-                {renderFormattedText(paragraph.replace(/\*\*/g, ''))}
-              </h4>
-            );
-          }
+        {/* 3. Incorrect Option Breakdown */}
+        {incorrectOptionSegments.length > 0 && (
+          <div className="p-4 bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl border-2 border-rose-100 dark:border-rose-900/20">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center font-black text-[10px]">
+                ✗
+              </div>
+              <h5 className="font-black text-[11px] uppercase tracking-wider text-rose-700 dark:text-rose-400">
+                ❌ Distractor Analysis (Why Others Are Incorrect)
+              </h5>
+            </div>
+            <div className="space-y-2 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
+              {incorrectOptionSegments.map((segment, idx) => (
+                <p key={idx} className="break-words">
+                  {renderFormattedText(segment)}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
-          return (
-            <p key={pIdx} className="p-3 bg-white/50 dark:bg-slate-800/20 rounded-2xl border border-slate-100/80 dark:border-slate-800/40 text-slate-850 dark:text-slate-200 break-words whitespace-pre-wrap select-text shadow-4xs leading-relaxed">
-              {renderFormattedText(paragraph)}
-            </p>
-          );
-        })}
+        {/* 4. List Items / Key Points */}
+        {bulletSegments.length > 0 && (
+          <div className="p-4 bg-slate-100/50 dark:bg-slate-800/30 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+              <h5 className="font-black text-[11px] uppercase tracking-wider text-slate-700 dark:text-slate-400">
+                💡 Key Insights & Takeaways
+              </h5>
+            </div>
+            <div className="space-y-2.5">
+              {bulletSegments.map((segment, idx) => (
+                <div key={idx} className="flex items-start gap-2.5 text-xs sm:text-[13px] font-medium leading-relaxed text-slate-800 dark:text-slate-200 select-text">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0 shadow-sm animate-pulse" />
+                  <div className="flex-1 break-words">
+                    {renderFormattedText(segment)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -165,6 +253,7 @@ const Quiz: React.FC<QuizProps> = ({
 
   const [currentQuiz, setCurrentQuiz] = useState<QuizType>(quiz);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex);
+  const [visitedIndices, setVisitedIndices] = useState<Set<number>>(() => new Set([initialQuestionIndex]));
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>(initialAnswers);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -197,6 +286,31 @@ const Quiz: React.FC<QuizProps> = ({
   }, [quiz]);
 
   const currentQuestion = currentQuiz.questions[currentQuestionIndex];
+
+  // Track visited questions indices
+  useEffect(() => {
+    setVisitedIndices(prev => {
+      if (prev.has(currentQuestionIndex)) return prev;
+      const next = new Set(prev);
+      next.add(currentQuestionIndex);
+      return next;
+    });
+  }, [currentQuestionIndex]);
+
+  // Centering active question navigator circle on swipe
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      const activeCircle = document.getElementById(`circle-nav-${currentQuestionIndex}`);
+      if (activeCircle) {
+        activeCircle.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
+      }
+    }, 80);
+    return () => clearTimeout(timerId);
+  }, [currentQuestionIndex]);
 
   // Auto-save ongoing test session to localStorage on progress changes so closing app never loses progress
   useEffect(() => {
@@ -514,18 +628,25 @@ const Quiz: React.FC<QuizProps> = ({
 
   const getQuestionStatus = (index: number) => {
     const targetQ = quiz.questions[index];
-    if (!targetQ) return 'unanswered';
+    if (!targetQ) return 'unvisited';
     const answer = userAnswers.find(a => 
       a.questionIndex !== undefined ? a.questionIndex === index : a.questionId === targetQ.id
     );
-    if (!answer || answer.selectedOptionIndex === null || answer.selectedOptionIndex === undefined) return 'unanswered';
+    const hasAnswer = answer && answer.selectedOptionIndex !== null && answer.selectedOptionIndex !== undefined;
     
-    if (mode === 'PRACTICE') {
-      return answer.isCorrect ? 'correct' : 'incorrect';
-    } else {
-      // In TEST mode palette: simply show answered vs unanswered
-      return 'answered';
+    if (hasAnswer) {
+      if (mode === 'PRACTICE') {
+        return answer.isCorrect ? 'correct' : 'incorrect';
+      } else {
+        return 'answered';
+      }
     }
+    
+    if (visitedIndices.has(index)) {
+      return 'skipped';
+    }
+    
+    return 'unvisited';
   };
 
   const toggleFullscreen = () => {
@@ -704,7 +825,9 @@ const Quiz: React.FC<QuizProps> = ({
         {/* Premium Horizontal Question Circle Navigator Bar */}
         <div className="w-full max-w-2xl mx-auto mb-3 px-4 sm:px-0">
           <div 
-            className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 w-full justify-start sm:justify-center flex-nowrap scroll-smooth no-scrollbar"
+            className={`flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 w-full flex-nowrap scroll-smooth no-scrollbar ${
+              currentQuiz.questions.length > 6 ? 'justify-start' : 'justify-start sm:justify-center'
+            }`}
             style={{
               msOverflowStyle: 'none',
               scrollbarWidth: 'none',
@@ -719,30 +842,35 @@ const Quiz: React.FC<QuizProps> = ({
               let circleStyle = "";
               if (isActive) {
                 if (status === 'correct') {
-                  circleStyle = "bg-emerald-500 text-white ring-4 ring-emerald-500/30 scale-105 z-10 font-black";
+                  circleStyle = "bg-emerald-500 text-white ring-4 ring-emerald-500/35 scale-105 z-10 font-black border-2 border-emerald-600 dark:border-emerald-400";
                 } else if (status === 'incorrect') {
-                  circleStyle = "bg-rose-500 text-white ring-4 ring-rose-500/30 scale-105 z-10 font-black";
+                  circleStyle = "bg-rose-500 text-white ring-4 ring-rose-500/35 scale-105 z-10 font-black border-2 border-rose-600 dark:border-rose-400";
                 } else if (status === 'answered') {
-                  circleStyle = "bg-emerald-500 text-white ring-4 ring-emerald-500/30 scale-105 z-10 font-black";
+                  circleStyle = "bg-emerald-600 text-white ring-4 ring-emerald-600/35 scale-105 z-10 font-black border-2 border-emerald-700 dark:border-emerald-400";
+                } else if (status === 'skipped') {
+                  circleStyle = "bg-amber-500 text-white ring-4 ring-amber-500/35 scale-105 z-10 font-black border-2 border-amber-600 dark:border-amber-400";
                 } else {
-                  circleStyle = "bg-blue-600 text-white ring-4 ring-blue-500/30 scale-105 z-10 font-black";
+                  circleStyle = "bg-blue-600 text-white ring-4 ring-blue-500/35 scale-105 z-10 font-black border-2 border-blue-700 dark:border-blue-400";
                 }
               } else {
                 if (status === 'correct') {
-                  circleStyle = "bg-emerald-500 text-white hover:bg-emerald-600";
+                  circleStyle = "bg-emerald-500 text-white hover:bg-emerald-600 border border-transparent";
                 } else if (status === 'incorrect') {
-                  circleStyle = "bg-rose-500 text-white hover:bg-rose-600";
+                  circleStyle = "bg-rose-500 text-white hover:bg-rose-600 border border-transparent";
                 } else if (status === 'answered') {
-                  circleStyle = "bg-emerald-500 text-white hover:bg-emerald-600";
+                  circleStyle = "bg-emerald-600 text-white hover:bg-emerald-700 border border-transparent";
+                } else if (status === 'skipped') {
+                  circleStyle = "bg-amber-500 text-white hover:bg-amber-600 border border-transparent";
                 } else {
-                  // Unanswered / neutral template outline as shown in the mockup
-                  circleStyle = "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-750 hover:bg-slate-200 dark:hover:bg-slate-700";
+                  // Not visited yet
+                  circleStyle = "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-200/80 dark:hover:bg-slate-750";
                 }
               }
 
               return (
                 <button
                   key={i}
+                  id={`circle-nav-${i}`}
                   onClick={() => {
                     setSelectedOption(null);
                     setShowFeedback(false);
@@ -827,7 +955,7 @@ const Quiz: React.FC<QuizProps> = ({
                   <div>
                     <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Question Navigator</h4>
                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                      {mode === 'TEST' ? 'Blue = Answered, Gray = Unanswered' : 'Green = Correct, Red = Incorrect'}
+                      {mode === 'TEST' ? 'Green = Answered, Amber = Skipped, Gray = Not Visited' : 'Green = Correct, Red = Incorrect, Amber = Skipped, Gray = Not Visited'}
                     </p>
                   </div>
                   <button 
@@ -837,7 +965,7 @@ const Quiz: React.FC<QuizProps> = ({
                     Submit Test
                   </button>
                 </div>
-
+                
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(42px,1fr))] gap-2">
                   {quiz.questions.map((_, i) => {
                     const status = getQuestionStatus(i);
@@ -853,9 +981,10 @@ const Quiz: React.FC<QuizProps> = ({
                         className={`aspect-square rounded-xl text-[10px] font-black border transition-all flex items-center justify-center
                           ${currentQuestionIndex === i ? 'ring-2 ring-blue-500 scale-105 shadow-sm' : 'border-transparent'}
                           ${status === 'correct' ? 'bg-emerald-500 text-white' : 
-                            status === 'incorrect' ? 'bg-red-500 text-white' : 
-                            status === 'answered' ? 'bg-blue-600 text-white' :
-                            'bg-slate-100 dark:bg-slate-800 text-slate-400'}
+                            status === 'incorrect' ? 'bg-rose-500 text-white' : 
+                            status === 'answered' ? 'bg-emerald-600 text-white' :
+                            status === 'skipped' ? 'bg-amber-500 text-white border border-amber-600/30' :
+                            'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200/80 dark:border-slate-700/60'}
                         `}
                       >
                         {i + 1}
