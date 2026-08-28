@@ -1,10 +1,12 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   initializeFirestore, 
+  getFirestore,
   persistentLocalCache, 
   persistentMultipleTabManager,
   doc,
-  getDocFromServer
+  getDocFromServer,
+  Firestore
 } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
@@ -19,15 +21,24 @@ const firebaseConfig = {
   measurementId: ""
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Initialize Firestore with persistent cache and multiple tab support
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  })
-}, "ai-studio-rohitquizflash-5f261794-5b3c-4f09-885d-fe0486c6b282");
+let firestoreInstance: Firestore;
+try {
+  firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  }, "ai-studio-rohitquizflash-5f261794-5b3c-4f09-885d-fe0486c6b282");
+} catch (e) {
+  try {
+    firestoreInstance = getFirestore(app, "ai-studio-rohitquizflash-5f261794-5b3c-4f09-885d-fe0486c6b282");
+  } catch (err) {
+    firestoreInstance = getFirestore(app);
+  }
+}
 
+export const db = firestoreInstance;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 

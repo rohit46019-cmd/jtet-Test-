@@ -6,10 +6,11 @@ import { StoredQuiz, BookmarkedQuestion, Category } from '../types';
 interface PhoneStorageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  isDarkMode: boolean;
-  library: StoredQuiz[];
-  bookmarks: BookmarkedQuestion[];
-  categories: Category[];
+  isDarkMode?: boolean;
+  library?: StoredQuiz[];
+  bookmarks?: BookmarkedQuestion[];
+  categories?: Category[];
+  onPermissionChanged?: (granted: boolean) => void;
   onDataImported?: (data: { library?: StoredQuiz[]; bookmarks?: BookmarkedQuestion[]; categories?: Category[] }) => void;
   onForceSync?: () => Promise<void>;
 }
@@ -17,10 +18,11 @@ interface PhoneStorageModalProps {
 export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
   isOpen,
   onClose,
-  isDarkMode,
-  library,
-  bookmarks,
-  categories,
+  isDarkMode = false,
+  library = [],
+  bookmarks = [],
+  categories = [],
+  onPermissionChanged,
   onDataImported,
   onForceSync
 }) => {
@@ -44,6 +46,9 @@ export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
     const res = await phoneStorageService.requestPermission();
     await loadStats();
     setIsSyncing(false);
+    if (onPermissionChanged) {
+      onPermissionChanged(true);
+    }
     setMsg({
       text: '✓ Phone Storage Permission Granted! Data is saved locally on device & synced with MongoDB.',
       type: 'success'
