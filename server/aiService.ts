@@ -1,8 +1,16 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import crypto from 'crypto';
 
-export const PRIMARY_MODEL = 'gemini-3.6-flash';
-export const FALLBACK_MODELS = ['gemini-3.7-flash', 'gemini-flash-latest'];
+export const PRIMARY_MODEL = 'gemini-3.7-flash';
+export const FALLBACK_MODELS = [
+  'gemini-flash-latest',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-1.5-flash-8b'
+];
 
 export interface QuestionData {
   id: string;
@@ -111,18 +119,27 @@ async function generateWithFallback(
       });
     } catch (err: any) {
       lastErr = err;
-      const errMsg = err?.message || String(err);
+      const errMsg = String(err?.message || err);
+      console.warn(`[AI Backend] Model ${model} failed (${errMsg}). Trying fallback model...`);
       if (
         errMsg.includes('not found') ||
         errMsg.includes('no longer available') ||
         errMsg.includes('not supported') ||
         errMsg.includes('deprecated') ||
-        errMsg.includes('404')
+        errMsg.includes('404') ||
+        errMsg.includes('429') ||
+        errMsg.includes('quota') ||
+        errMsg.includes('Quota') ||
+        errMsg.includes('limit') ||
+        errMsg.includes('503') ||
+        errMsg.includes('overloaded') ||
+        errMsg.includes('RESOURCE_EXHAUSTED') ||
+        errMsg.includes('ResourceExhausted')
       ) {
-        console.warn(`[AI Backend] Model ${model} unavailable (${errMsg}). Trying fallback model...`);
         continue;
       }
-      throw err;
+      // For permission errors or fundamental bad requests, still attempt other fallback models before escalating
+      continue;
     }
   }
   throw lastErr;
@@ -143,7 +160,14 @@ async function executeWithRetry<T>(
   for (const key of keys) {
     for (let attempt = 0; attempt < MAX_RETRIES_PER_KEY; attempt++) {
       try {
-        const ai = new GoogleGenAI({ apiKey: key });
+        const ai = new GoogleGenAI({
+          apiKey: key,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build'
+            }
+          }
+        });
         return await operation(ai);
       } catch (error: any) {
         const { message, code } = parseGeminiError(error);
@@ -151,15 +175,15 @@ async function executeWithRetry<T>(
 
         if (code === 429 || code === 503) {
           if (attempt < MAX_RETRIES_PER_KEY - 1) {
-            const delay = Math.pow(2, attempt) * 500 + Math.random() * 300;
-            console.warn(`[AI Backend] Gemini API warning (${code}: ${message}). Retrying in ${Math.round(delay)}ms...`);
+            const delay = Math.pow(2, attempt) * 600 + Math.random() * 400;
+            console.warn(`[AI Backend] Gemini API warning (${code}: ${message}). Retrying attempt ${attempt + 1}/${MAX_RETRIES_PER_KEY} in ${Math.round(delay)}ms...`);
             await sleep(delay);
             continue;
           }
         }
 
         // On 403 or exhausted retries, try next key
-        console.warn(`[AI Backend] Key failed with ${code}: ${message}. Trying fallback key...`);
+        console.warn(`[AI Backend] Key failed with ${code}: ${message}. Trying fallback key if available...`);
         break;
       }
     }

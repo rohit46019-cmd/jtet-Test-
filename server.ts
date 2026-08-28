@@ -4,7 +4,6 @@ import fs from 'fs';
 import cors from 'cors';
 import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
-import { createServer as createViteServer } from 'vite';
 import {
   generateServerDeepExplanation,
   auditAndFixServerQuizQuestions,
@@ -679,7 +678,8 @@ async function startServer() {
   // Connect to MongoDB in background without blocking server startup
   connectToMongoDB().catch(() => {});
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

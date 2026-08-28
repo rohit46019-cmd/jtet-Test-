@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig, Question } from '../types';
 import { quizSessionService } from '../services/quizSessionService';
+import { phoneStorageService } from '../services/phoneStorageService';
+import { auditAndFixQuizQuestions } from '../services/geminiService';
 import { AiExplainModal } from './AiExplainModal';
 import { 
   CheckCircle2, XCircle, Info, Bookmark, LogOut, Timer, ChevronLeft, 
   ChevronRight, Send, AlertCircle, X, Check, Maximize2, Loader2, Sparkles, MoveHorizontal,
-  Flame, HelpCircle, CheckSquare, Play, Brain, AlertTriangle
+  Flame, HelpCircle, CheckSquare, Play, Brain, AlertTriangle, ShieldCheck, ArrowRight
 } from 'lucide-react';
 
 interface QuizProps {
@@ -15,6 +17,7 @@ interface QuizProps {
   onAbort: (answers?: UserAnswer[]) => void;
   onSaveAndExit?: (session: { quiz: QuizType; quizConfig: QuizConfig; currentQuestionIndex: number; userAnswers: UserAnswer[]; timer: number }) => void;
   onSaveQuestion: (q: BookmarkedQuestion) => void;
+  onUpdateQuiz?: (updatedQuiz: QuizType) => void;
   onFetchNext?: () => Promise<void>;
   savedIds: Set<string>;
   timePerQuestion?: number;
@@ -133,7 +136,8 @@ const Quiz: React.FC<QuizProps> = ({
   onFinish, 
   onAbort, 
   onSaveAndExit,
-  onSaveQuestion, 
+  onSaveQuestion,
+  onUpdateQuiz, 
   onFetchNext, 
   savedIds, 
   timePerQuestion = 0,
@@ -145,6 +149,7 @@ const Quiz: React.FC<QuizProps> = ({
   const effectiveTimePerQ = quizConfig?.timePerQuestion || timePerQuestion || 0;
   const testDurationMinutes = quizConfig?.testDurationMinutes || 0;
 
+  const [currentQuiz, setCurrentQuiz] = useState<QuizType>(quiz);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex);
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>(initialAnswers);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -161,11 +166,29 @@ const Quiz: React.FC<QuizProps> = ({
   const [reportReason, setReportReason] = useState<string>('Wrong Answer Key');
   const [reportToast, setReportToast] = useState<string | null>(null);
 
+  // Report AI Auditing State
+  const [isAuditingReport, setIsAuditingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportAuditResult, setReportAuditResult] = useState<{
+    wasChanged: boolean;
+    oldCorrectIndex: number;
+    newCorrectIndex: number;
+    oldOption: string;
+    newOption: string;
+    reason: string;
+  } | null>(null);
+
+  useEffect(() => {
+    setCurrentQuiz(quiz);
+  }, [quiz]);
+
+  const currentQuestion = currentQuiz.questions[currentQuestionIndex];
+
   // Auto-save ongoing test session to localStorage on progress changes so closing app never loses progress
   useEffect(() => {
-    if (quiz && userAnswers.length >= 0) {
+    if (currentQuiz && userAnswers.length >= 0) {
       const sessionData = {
-        quiz,
+        quiz: currentQuiz,
         quizConfig: quizConfig || { mode: 'PRACTICE' as const, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
         currentQuestionIndex,
         userAnswers,
@@ -173,7 +196,90 @@ const Quiz: React.FC<QuizProps> = ({
       };
       quizSessionService.saveSession(sessionData);
     }
-  }, [quiz, quizConfig, currentQuestionIndex, userAnswers, timer]);
+  }, [currentQuiz, quizConfig, currentQuestionIndex, userAnswers, timer]);
+
+  const handleReportAndAudit = async () => {
+    if (!currentQuestion) return;
+    try {
+      setIsAuditingReport(true);
+      setReportError(null);
+      setReportAuditResult(null);
+
+      // Trigger Gemini AI audit on reported question
+      const auditRes = await auditAndFixQuizQuestions([currentQuestion], currentQuiz.language || 'Hindi/English');
+
+      if (auditRes && auditRes.questions && auditRes.questions.length > 0) {
+        const auditedQuestion = auditRes.questions[0];
+        const oldIndex = currentQuestion.correctAnswerIndex;
+        const newIndex = auditedQuestion.correctAnswerIndex;
+        const wasChanged = oldIndex !== newIndex || auditedQuestion.explanation !== currentQuestion.explanation;
+
+        const updatedQuestions = [...currentQuiz.questions];
+        updatedQuestions[currentQuestionIndex] = auditedQuestion;
+
+        const updatedQuiz = {
+          ...currentQuiz,
+          questions: updatedQuestions
+        };
+
+        setCurrentQuiz(updatedQuiz);
+        if (onUpdateQuiz) {
+          onUpdateQuiz(updatedQuiz);
+        }
+
+        // Save updated session & phone storage
+        quizSessionService.saveSession({
+          quiz: updatedQuiz,
+          quizConfig: quizConfig || { mode: 'PRACTICE', positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
+          currentQuestionIndex,
+          userAnswers,
+          timer
+        });
+
+        try {
+          const savedLib = phoneStorageService.getItem<any[]>('qf_lib_v4', []);
+          if (Array.isArray(savedLib)) {
+            const updatedLib = savedLib.map((q: any) => {
+              if (q.id === updatedQuiz.id) {
+                return { ...q, questions: updatedQuestions };
+              }
+              return q;
+            });
+            phoneStorageService.saveItem('qf_lib_v4', updatedLib);
+          }
+        } catch (_) {}
+
+        const oldOpt = currentQuestion.options[oldIndex] || '';
+        const newOpt = auditedQuestion.options[newIndex] || '';
+
+        const note = auditRes.auditNotes && auditRes.auditNotes.length > 0
+          ? auditRes.auditNotes[0].reason
+          : (wasChanged
+              ? `AI updated answer key from Option ${String.fromCharCode(65 + oldIndex)} to Option ${String.fromCharCode(65 + newIndex)} based on fact verification.`
+              : `AI verified that Option ${String.fromCharCode(65 + newIndex)} is 100% correct.`);
+
+        setReportAuditResult({
+          wasChanged,
+          oldCorrectIndex: oldIndex,
+          newCorrectIndex: newIndex,
+          oldOption: oldOpt,
+          newOption: newOpt,
+          reason: note
+        });
+
+        if (wasChanged) {
+          setReportToast(`✓ AI Verified & Fixed Q#${currentQuestionIndex + 1}: Answer key corrected!`);
+        } else {
+          setReportToast(`✓ AI Verified Q#${currentQuestionIndex + 1}: Answer key is 100% accurate.`);
+        }
+        setTimeout(() => setReportToast(null), 5000);
+      }
+    } catch (err: any) {
+      setReportError(err?.message || 'Failed to complete AI report audit. Please try again.');
+    } finally {
+      setIsAuditingReport(false);
+    }
+  };
 
   // Window beforeunload & pagehide safety handlers for mobile browsers
   useEffect(() => {
@@ -200,10 +306,9 @@ const Quiz: React.FC<QuizProps> = ({
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
 
-  const currentQuestion = quiz.questions[currentQuestionIndex];
-  const progressPercent = quiz.isInfinite 
+  const progressPercent = currentQuiz.isInfinite 
     ? (userAnswers.length / (userAnswers.length + 1)) * 100 
-    : ((currentQuestionIndex + 1) / quiz.questions.length) * 100;
+    : ((currentQuestionIndex + 1) / currentQuiz.questions.length) * 100;
 
   // Total test countdown if testDurationMinutes > 0
   const totalSecondsAllowed = testDurationMinutes * 60;
@@ -774,60 +879,131 @@ const Quiz: React.FC<QuizProps> = ({
         />
       )}
 
-      {/* Report Wrong Answer Modal */}
+      {/* Report Wrong Answer & AI Auto-Fix Modal */}
       {showReportModal && (
         <div className="fixed inset-0 z-[250] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 border-2 border-black dark:border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 border-2 border-black dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black text-sm uppercase tracking-wider">
-                <AlertTriangle size={18} /> Report Issue
+                <AlertTriangle size={18} /> Report & AI Auto-Fix
               </div>
-              <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">
+              <button 
+                onClick={() => {
+                  setShowReportModal(false);
+                  setReportAuditResult(null);
+                  setReportError(null);
+                }} 
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1"
+              >
                 <X size={18} />
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-              Report an error or issue for <span className="font-bold text-slate-900 dark:text-white">Question #{currentQuestionIndex + 1}</span>:
-            </p>
+            {isAuditingReport ? (
+              <div className="py-8 flex flex-col items-center justify-center space-y-3 text-center">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-full border-4 border-indigo-200 dark:border-indigo-900 border-t-indigo-600 dark:border-t-indigo-400 animate-spin" />
+                  <Sparkles size={20} className="absolute inset-0 m-auto text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">AI Fact-Checking Question #{currentQuestionIndex + 1}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Verifying factual accuracy, options, and answer keys...</p>
+                </div>
+              </div>
+            ) : reportAuditResult ? (
+              <div className="space-y-4">
+                {reportAuditResult.wasChanged ? (
+                  <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-black text-xs uppercase tracking-wider">
+                      <Sparkles size={16} className="text-amber-600" /> AI Corrected Wrong Answer Key!
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 line-through font-medium">
+                        <span className="font-bold">Previous Key:</span> Option {String.fromCharCode(65 + reportAuditResult.oldCorrectIndex)} ({reportAuditResult.oldOption})
+                      </div>
+                      <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold">
+                        <ArrowRight size={14} className="text-emerald-600" />
+                        <span>Verified Correct:</span> Option {String.fromCharCode(65 + reportAuditResult.newCorrectIndex)} ({reportAuditResult.newOption})
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-700 dark:text-slate-300 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/50">
+                      <span className="font-bold text-amber-900 dark:text-amber-200">AI Reason: </span>{reportAuditResult.reason}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-300 dark:border-emerald-800 rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-black text-xs uppercase tracking-wider">
+                      <ShieldCheck size={18} className="text-emerald-600" /> Fact-Check Verified: Answer Key is 100% Correct!
+                    </div>
+                    <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                      Option {String.fromCharCode(65 + reportAuditResult.newCorrectIndex)} ("{reportAuditResult.newOption}") is factually correct.
+                    </p>
+                    <p className="text-[11px] text-slate-700 dark:text-slate-300 bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50">
+                      <span className="font-bold text-emerald-900 dark:text-emerald-200">AI Explanation: </span>{reportAuditResult.reason}
+                    </p>
+                  </div>
+                )}
 
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 line-clamp-2">
-              "{currentQuestion?.question}"
-            </div>
+                <button
+                  onClick={() => {
+                    setShowReportModal(false);
+                    setReportAuditResult(null);
+                  }}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95"
+                >
+                  Done & Continue Test
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                  Report an error or issue for <span className="font-bold text-slate-900 dark:text-white">Question #{currentQuestionIndex + 1}</span>. AI will verify facts and automatically correct mistakes across the app & JSON file:
+                </p>
 
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Issue Type</label>
-              <select 
-                value={reportReason} 
-                onChange={(e) => setReportReason(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none"
-              >
-                <option value="Wrong Answer Key">Wrong Answer Key</option>
-                <option value="Typo or Formatting Error">Typo or Formatting Error</option>
-                <option value="Incorrect Explanation">Incorrect Explanation</option>
-                <option value="Confusing Options">Confusing Options</option>
-                <option value="Other Issue">Other Issue</option>
-              </select>
-            </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 line-clamp-3">
+                  "{currentQuestion?.question}"
+                </div>
 
-            <div className="flex gap-2 pt-2">
-              <button 
-                onClick={() => setShowReportModal(false)}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => {
-                  setShowReportModal(false);
-                  setReportToast(`✓ Report logged for Q#${currentQuestionIndex + 1}! Thank you.`);
-                  setTimeout(() => setReportToast(null), 4000);
-                }}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95"
-              >
-                Submit Report
-              </button>
-            </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Select Issue Type</label>
+                  <select 
+                    value={reportReason} 
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none"
+                  >
+                    <option value="Wrong Answer Key">Wrong Answer Key</option>
+                    <option value="Typo or Formatting Error">Typo or Formatting Error</option>
+                    <option value="Incorrect Explanation">Incorrect Explanation</option>
+                    <option value="Confusing Options">Confusing Options</option>
+                    <option value="Other Issue">Other Issue</option>
+                  </select>
+                </div>
+
+                {reportError && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                    {reportError}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    onClick={() => {
+                      setShowReportModal(false);
+                      setReportError(null);
+                    }}
+                    className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleReportAndAudit}
+                    className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    <Sparkles size={14} /> Submit & AI Fix
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

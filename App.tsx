@@ -576,6 +576,33 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateQuiz = (updatedQuiz: Quiz) => {
+    setQuiz(updatedQuiz);
+    setLibrary(prev => {
+      const exists = prev.some(q => q.id === updatedQuiz.id);
+      let updatedLib: StoredQuiz[];
+      if (exists) {
+        updatedLib = prev.map(q => q.id === updatedQuiz.id ? { ...q, ...updatedQuiz, questions: updatedQuiz.questions } : q);
+      } else {
+        const newStored: StoredQuiz = {
+          ...updatedQuiz,
+          createdAt: updatedQuiz.createdAt || Date.now()
+        };
+        updatedLib = [newStored, ...prev];
+      }
+      localStorage.setItem('qf_lib_v4', JSON.stringify(updatedLib));
+      localStorage.setItem('quizzly_library', JSON.stringify(updatedLib));
+      return updatedLib;
+    });
+
+    // Sync updated quiz to backend if online
+    fetch(`/api/quizzes/${updatedQuiz.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedQuiz)
+    }).catch(() => {});
+  };
+
   const handleBookmark = (bq: BookmarkedQuestion) => {
     const exists = bookmarks.some(b => b.question.id === bq.question.id);
     let updated = exists 
@@ -1969,7 +1996,8 @@ const App: React.FC = () => {
             onFinish={handleFinishQuiz} 
             onAbort={handleAbortQuiz} 
             onSaveAndExit={handleSaveAndExit}
-            onSaveQuestion={handleBookmark} 
+            onSaveQuestion={handleBookmark}
+            onUpdateQuiz={handleUpdateQuiz}
             onFetchNext={quiz.isInfinite ? handleFetchNextQuestion : undefined} 
             savedIds={new Set(bookmarks.map(b => b.question.id))} 
             timePerQuestion={quizConfig.timePerQuestion}
