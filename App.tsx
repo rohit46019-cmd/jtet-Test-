@@ -16,6 +16,7 @@ import { phoneStorageService } from './services/phoneStorageService';
 import { PhoneStorageModal } from './components/PhoneStorageModal';
 import { AiAuditModal } from './components/AiAuditModal';
 import { AiExplainModal } from './components/AiExplainModal';
+import { TestSummary } from './components/TestSummary';
 import { auditAndFixQuizQuestions } from './services/geminiService';
 import { quizSessionService } from './services/quizSessionService';
 import { motion, AnimatePresence } from 'motion/react';
@@ -387,7 +388,7 @@ const App: React.FC = () => {
     }
   };
 
-  const { user, isAdmin, loading: authLoading, login, logout } = useAuth();
+  const { user, isAdmin, loading: authLoading, login, loginAsGuest, logout, authError } = useAuth();
 
   const loadDemoJson = () => {
     const demoObj = JSON.parse(jsonTemplate);
@@ -831,8 +832,8 @@ const App: React.FC = () => {
     const finalMarks = Math.max(0, positiveEarned - negativeDeducted);
     const totalPossibleMarks = totalQuestions * posMarks;
 
-    // Points rule: +10 PTS per question attempted + 5 PTS bonus per correct answer
-    const points = (attempted * 10) + (correct * 5);
+    // Points rule: 1 mark (+1 PTS) per correct answer for rank calculation
+    const points = correct * 1;
     const accuracy = attempted > 0 ? (correct / attempted) * 100 : 0;
 
     return { 
@@ -857,7 +858,43 @@ const App: React.FC = () => {
     if (!ans || ans.length === 0 || !user) return;
     const attemptedCount = ans.length;
     const correctCount = ans.filter(a => a.isCorrect).length;
-    const pointsEarned = (attemptedCount * 10) + (correctCount * 5);
+    const totalTime = ans.reduce((acc, curr) => acc + (curr.timeSpent || 0), 0);
+    // 1 mark per correct answer for rank points
+    const pointsEarned = correctCount * 1;
+
+    // Update local cache first
+    try {
+      const savedCache = localStorage.getItem('qf_cached_leaderboard');
+      let cachedUsers: any[] = savedCache ? JSON.parse(savedCache) : [];
+      const userIdx = cachedUsers.findIndex(u => u.id === user.uid || u.email === user.email);
+      const userName = user.displayName || user.email?.split('@')[0] || 'User';
+      
+      if (userIdx >= 0) {
+        cachedUsers[userIdx] = {
+          ...cachedUsers[userIdx],
+          totalPoints: (cachedUsers[userIdx].totalPoints || 0) + pointsEarned,
+          questionsAttempted: (cachedUsers[userIdx].questionsAttempted || 0) + attemptedCount,
+          correctAnswers: (cachedUsers[userIdx].correctAnswers || 0) + correctCount,
+          totalTimeSpent: (cachedUsers[userIdx].totalTimeSpent || 0) + totalTime,
+          name: userName
+        };
+      } else {
+        cachedUsers.push({
+          id: user.uid,
+          email: user.email || '',
+          name: userName,
+          totalPoints: pointsEarned,
+          questionsAttempted: attemptedCount,
+          correctAnswers: correctCount,
+          totalTimeSpent: totalTime,
+          role: isAdmin ? 'admin' : 'user'
+        });
+      }
+      cachedUsers.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+      localStorage.setItem('qf_cached_leaderboard', JSON.stringify(cachedUsers));
+    } catch (cacheErr) {
+      console.warn("Failed updating local leaderboard cache:", cacheErr);
+    }
 
     try {
       await fetch('/api/users/sync', {
@@ -870,11 +907,12 @@ const App: React.FC = () => {
           pointsEarned,
           questionsAttempted: attemptedCount,
           correctAnswers: correctCount,
+          totalTimeSpent: totalTime,
           role: isAdmin ? 'admin' : 'user'
         })
       });
     } catch (e) {
-      console.error("Failed to sync PTS to database:", e);
+      console.warn("Server sync PTS offline fallback used:", e);
     }
   };
 
@@ -924,30 +962,48 @@ const App: React.FC = () => {
 }`;
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#fcfdfe] text-slate-900'} antialiased overflow-x-hidden`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#fcfdfe] text-slate-900'} antialiased overflow-x-hidden ${appState !== 'QUIZ_IN_PROGRESS' ? 'pt-14 sm:pt-16' : ''}`}>
       {appState !== 'QUIZ_IN_PROGRESS' && (
-        <header className={`sticky top-0 z-[60] backdrop-blur-md border-b px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-100'}`}>
+        <header className="fixed top-0 left-0 right-0 z-[60] bg-slate-900 border-b-2 border-black px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 text-white shadow-lg backdrop-blur-md">
           <div className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onClick={restart}>
-              <button onClick={() => setShowTopMenu(!showTopMenu)} className={`p-2 rounded-xl transition-all ${isDarkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`} title="Menu">
+              <button onClick={() => setShowTopMenu(!showTopMenu)} className="p-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 transition-all border border-slate-700" title="Menu">
                 <Menu size={18} />
               </button>
-              <img src="/icon.jpg" alt="Quiz Flash Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shadow-sm object-cover border border-slate-200 dark:border-slate-800" referrerPolicy="no-referrer" />
-             <h1 className="text-sm sm:text-base font-black uppercase tracking-tighter whitespace-nowrap text-slate-900 dark:text-white">Quiz <span className="text-blue-600">Flash</span></h1>
+              <img src="/icon.jpg" alt="Quiz Flash Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shadow-sm object-cover border border-slate-700" referrerPolicy="no-referrer" />
+             <h1 className="text-sm sm:text-base font-black uppercase tracking-tighter whitespace-nowrap text-white">Quiz <span className="text-blue-400">Flash</span></h1>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
              {authLoading ? (
-               <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin mr-1"></div>
+               <div className="h-4 w-4 rounded-full border-2 border-blue-400 border-t-transparent animate-spin mr-1"></div>
              ) : user ? (
-               <div className="hidden sm:block px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black text-[10px] uppercase tracking-wider">
-                 {user.displayName || 'Learner'}
+               <div className="flex items-center gap-1">
+                 <div className="hidden sm:block px-2.5 py-1 rounded-xl bg-blue-900/60 text-blue-300 font-black text-[9.5px] uppercase tracking-wider border border-blue-700">
+                   {user.displayName || 'Learner'}
+                 </div>
+                 <button onClick={logout} className="px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white font-bold text-[8px] uppercase">Logout</button>
                </div>
              ) : (
-               <button onClick={login} className="px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black text-[10px] uppercase tracking-wider hover:bg-blue-100 transition-all shrink-0">Login</button>
+               <div className="flex items-center gap-1">
+                 <button onClick={login} className="px-2.5 py-1 rounded-xl bg-blue-600 text-white font-black text-[9.5px] uppercase tracking-wider hover:bg-blue-500 transition-all shrink-0 border border-blue-500">Google Login</button>
+                 <button onClick={loginAsGuest} className="px-2 py-1 rounded-xl bg-slate-800 text-slate-300 font-bold text-[8.5px] uppercase hover:bg-slate-700 transition-all">Guest</button>
+               </div>
              )}
-             <button onClick={toggleFullscreen} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'}`} title="Full Screen"><Maximize2 size={16} /></button>
-             <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{isDarkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
+             <button onClick={toggleFullscreen} className="p-1.5 sm:p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white transition-all border border-slate-700" title="Full Screen">
+               <Maximize2 size={16} />
+             </button>
+             <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-1.5 sm:p-2 rounded-lg bg-slate-800 text-yellow-400 hover:bg-slate-700 transition-all border border-slate-700" title="Theme Toggle">
+               {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
+             </button>
           </div>
         </header>
+      )}
+
+      {/* Vercel Login Warning/Notification Banner if any */}
+      {authError && (
+        <div className="max-w-4xl mx-auto px-3 py-1.5 mt-2 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[9.5px] rounded-xl flex items-center justify-between gap-2 animate-in fade-in">
+          <span>{authError}</span>
+          <button onClick={loginAsGuest} className="px-2 py-0.5 bg-amber-500 text-white font-black text-[8px] uppercase rounded-lg shrink-0">Continue as Guest</button>
+        </div>
       )}
 
       {/* 3-Line Dropdown Menu Modal - Half Screen Slide-in */}
@@ -1224,18 +1280,18 @@ const App: React.FC = () => {
                           <img src="/icon.jpg" alt="Logo" className="w-full h-full object-contain brightness-0 invert" referrerPolicy="no-referrer" />
                         </div>
                         <div className="min-w-0">
-                          <h2 className="text-base sm:text-lg font-black tracking-tight text-white truncate">
+                          <h2 className="text-xs font-black tracking-tight text-white truncate">
                             Hello, {user?.displayName || 'Learner'} 👋
                           </h2>
-                          <p className="text-blue-100/80 text-[10px] font-medium tracking-wide truncate">Ready to evolve today?</p>
+                          <p className="text-blue-100/80 text-[8px] font-medium tracking-wide truncate">Ready to evolve today?</p>
                         </div>
                       </div>
 
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white font-black text-[7px] uppercase tracking-widest shadow-sm">
-                          <Sparkles size={8} className="text-amber-300" /> Quiz Flash 2.4
+                        <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white font-black text-[6.5px] uppercase tracking-widest shadow-sm">
+                          <Sparkles size={7} className="text-amber-300" /> Quiz Flash 2.4
                         </div>
-                        <h3 className="text-sm sm:text-base font-black text-white italic tracking-tight">
+                        <h3 className="text-xs font-black text-white italic tracking-tight">
                           Evolve.
                         </h3>
                       </div>
@@ -1247,15 +1303,15 @@ const App: React.FC = () => {
 
                 {/* Phone Storage Permission Request Banner */}
                 {showStoragePromptBanner && !storagePermissionGranted && (
-                  <div className="p-5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-top-4 duration-500 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
-                        <Smartphone size={24} className="text-white" />
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white shadow-lg animate-in fade-in slide-in-from-top-4 duration-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                        <Smartphone size={18} className="text-white" />
                       </div>
                       <div>
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-white/20 px-2.5 py-0.5 rounded-full">Device Permission</span>
-                        <h4 className="font-black text-sm sm:text-base tracking-tight mt-1">Phone Storage & Offline Cache</h4>
-                        <p className="text-[11px] text-blue-100 font-medium leading-tight mt-0.5">
+                        <span className="text-[7.5px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">Device Permission</span>
+                        <h4 className="font-black text-xs tracking-tight mt-0.5">Phone Storage & Offline Cache</h4>
+                        <p className="text-[9px] text-blue-100 font-medium leading-tight mt-0.5">
                           Quizzes aur test data ko aapke phone storage me save karne ki permission chahiye taki bina internet bhi sab chalta rahe.
                         </p>
                       </div>
@@ -1263,16 +1319,16 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                       <button 
                         onClick={handleGrantPhoneStorage}
-                        className="flex-1 sm:flex-none px-5 py-3 bg-white text-blue-700 hover:bg-blue-50 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="flex-1 sm:flex-none px-3 py-2 bg-white text-blue-700 hover:bg-blue-50 font-black text-[8px] uppercase tracking-widest rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
                       >
-                        <ShieldCheck size={14} /> Allow Permission
+                        <ShieldCheck size={12} /> Allow Permission
                       </button>
                       <button 
                         onClick={handleDismissStoragePrompt}
-                        className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all"
+                        className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
                         title="Dismiss"
                       >
-                        <X size={16} />
+                        <X size={14} />
                       </button>
                     </div>
                   </div>
@@ -1280,37 +1336,37 @@ const App: React.FC = () => {
 
                 {/* Paused Session Resume Banner */}
                 {pausedSession && (
-                  <div className="mb-6 p-5 rounded-[2.5rem] bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-xl shadow-amber-500/20 animate-in fade-in zoom-in-95 duration-500 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-white/25 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
-                        <Timer size={24} className="animate-pulse" />
+                  <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg animate-in fade-in zoom-in-95 duration-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-white/25 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                        <Timer size={18} className="animate-pulse" />
                       </div>
                       <div>
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-white/20 px-2.5 py-0.5 rounded-full">Paused Test Session</span>
-                        <h4 className="font-black text-base tracking-tight mt-1 truncate max-w-xs">{pausedSession.quiz.title}</h4>
-                        <p className="text-[11px] text-amber-100 font-medium">Question {pausedSession.currentQuestionIndex + 1} of {pausedSession.quiz.questions.length} • Elapsed: {Math.floor(pausedSession.timer / 60).toString().padStart(2, '0')}:{(pausedSession.timer % 60).toString().padStart(2, '0')}</p>
+                        <span className="text-[7.5px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">Paused Test Session</span>
+                        <h4 className="font-black text-xs tracking-tight mt-0.5 truncate max-w-xs">{pausedSession.quiz.title}</h4>
+                        <p className="text-[9px] text-amber-100 font-medium">Question {pausedSession.currentQuestionIndex + 1} of {pausedSession.quiz.questions.length} • Elapsed: {Math.floor(pausedSession.timer / 60).toString().padStart(2, '0')}:{(pausedSession.timer % 60).toString().padStart(2, '0')}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <button 
                         onClick={() => resumePausedSession(pausedSession)}
-                        className="flex-1 sm:flex-none px-5 py-3.5 bg-white text-amber-600 hover:bg-amber-50 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                        className="flex-1 sm:flex-none px-3.5 py-2 bg-white text-amber-600 hover:bg-amber-50 font-black text-[8px] uppercase tracking-widest rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-1"
                       >
-                        <Play size={14} fill="currentColor" /> Resume (Q {pausedSession.currentQuestionIndex + 1})
+                        <Play size={12} fill="currentColor" /> Resume (Q {pausedSession.currentQuestionIndex + 1})
                       </button>
                       <button 
                         onClick={() => startFreshFromPausedSession(pausedSession)}
-                        className="px-4 py-3.5 bg-amber-700/60 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center gap-1.5"
+                        className="px-3 py-2 bg-amber-700/60 hover:bg-amber-700 text-white font-black text-[8px] uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1"
                         title="Start this test from beginning"
                       >
-                        <RotateCcw size={13} /> Start Fresh
+                        <RotateCcw size={11} /> Start Fresh
                       </button>
                       <button 
                         onClick={discardPausedSession}
-                        className="p-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all"
+                        className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
                         title="Discard Paused Session"
                       >
-                        <X size={16} />
+                        <X size={14} />
                       </button>
                     </div>
                   </div>
@@ -1318,20 +1374,20 @@ const App: React.FC = () => {
 
                 {/* 1. TOP CATEGORIES & SUB-CATEGORIES SECTION (SHOWN AT VERY TOP OF HOME) */}
                 <div className="text-left">
-                  <div className="flex items-center justify-between mb-3 px-1">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                      <LayoutGrid size={14} className="text-blue-600" /> Categories & Sub-Categories
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <h3 className="text-[8.5px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <LayoutGrid size={12} className="text-blue-600" /> Categories & Sub-Categories
                     </h3>
                     <button 
                       onClick={() => navigateTo('LIBRARY')} 
-                      className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:underline flex items-center gap-1"
+                      className="text-[8.5px] font-black uppercase tracking-widest text-blue-600 hover:underline flex items-center gap-1"
                     >
-                      View All Vault Tests <ArrowRight size={12} />
+                      View All Vault Tests <ArrowRight size={10} />
                     </button>
                   </div>
 
                   {/* Main Categories Grid with AI Generated Thumbnails & Subcategories */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {categories.filter(c => !c.parentId).map(cat => {
                       const subCats = categories.filter(c => c.parentId === cat.id);
                       const catQuizCount = library.filter(q => q.categoryId === cat.id).length;
@@ -1339,8 +1395,8 @@ const App: React.FC = () => {
                       return (
                         <div 
                           key={cat.id}
-                          className={`p-4 rounded-3xl border transition-all hover:border-blue-500/80 hover:shadow-lg flex flex-col justify-between ${
-                            isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+                          className={`p-2 rounded-xl border transition-all hover:border-blue-500/80 hover:shadow-xs flex flex-col justify-between ${
+                            isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-100 shadow-2xs'
                           }`}
                         >
                           <div 
@@ -1349,25 +1405,25 @@ const App: React.FC = () => {
                               setSelectedSubCategoryFilter('ALL');
                               navigateTo('LIBRARY');
                             }}
-                            className="flex items-center gap-3.5 cursor-pointer group"
+                            className="flex items-center gap-2 cursor-pointer group"
                           >
                             <TopicImage 
                               title={cat.name}
                               customUrl={cat.thumbnailUrl}
-                              className="w-14 h-14 rounded-2xl object-cover border border-slate-200 dark:border-slate-800 shadow-sm shrink-0 group-hover:scale-105 transition-transform"
+                              className="w-8 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-800 shadow-2xs shrink-0 group-hover:scale-105 transition-transform"
                             />
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{cat.name}</h4>
-                              <span className="inline-block px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase tracking-widest mt-1">
+                              <h4 className="font-bold text-[10.5px] text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{cat.name}</h4>
+                              <span className="inline-block px-1.5 py-0.2 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-[7px] font-black uppercase tracking-widest mt-0.5">
                                 {catQuizCount} {catQuizCount === 1 ? 'Test' : 'Tests'}
                               </span>
                             </div>
-                            <ArrowRight size={16} className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all shrink-0" />
+                            <ArrowRight size={12} className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all shrink-0" />
                           </div>
 
                           {/* Sub-categories row if present */}
                           {subCats.length > 0 && (
-                            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap gap-1.5">
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap gap-1">
                               {subCats.map(sub => {
                                 const subCount = library.filter(q => q.subCategoryId === sub.id).length;
                                 return (
@@ -1379,10 +1435,10 @@ const App: React.FC = () => {
                                       setSelectedSubCategoryFilter(sub.id);
                                       navigateTo('LIBRARY');
                                     }}
-                                    className="px-2.5 py-1 rounded-xl text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-gradient-to-r hover:from-blue-600 hover:to-indigo-600 hover:text-white transition-all flex items-center gap-1 shadow-2xs"
+                                    className="px-1.5 py-0.5 rounded text-[7.5px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-gradient-to-r hover:from-blue-600 hover:to-indigo-600 hover:text-white transition-all flex items-center gap-0.5"
                                   >
                                     <span>{sub.name}</span>
-                                    <span className="opacity-60 text-[8px]">({subCount})</span>
+                                    <span className="opacity-60 text-[6.5px]">({subCount})</span>
                                   </button>
                                 );
                               })}
@@ -1393,10 +1449,10 @@ const App: React.FC = () => {
                     })}
 
                     {categories.filter(c => !c.parentId).length === 0 && (
-                      <div className="col-span-full p-6 text-center rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
-                        <p className="text-slate-400 text-xs font-medium">No categories created yet.</p>
+                      <div className="col-span-full p-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                        <p className="text-slate-400 text-[10px] font-medium">No categories created yet.</p>
                         {isAdmin && (
-                          <button onClick={() => navigateTo('ADMIN')} className="mt-2 text-xs font-black text-blue-600 uppercase tracking-wider">
+                          <button onClick={() => navigateTo('ADMIN')} className="mt-1 text-[9px] font-black text-blue-600 uppercase tracking-wider">
                             + Add Categories in Admin Panel
                           </button>
                         )}
@@ -1406,99 +1462,36 @@ const App: React.FC = () => {
                 </div>
 
                 {/* 2. FILE UPLOAD & PASTE AREA BELOW CATEGORIES */}
-                <div className="pt-2">
-                  {/* Generation Language Selector - Visible during Forge session creation */}
-                  <div className="mb-6 animate-in slide-in-from-top duration-500">
-                     <div className={`p-4 rounded-[1.8rem] border shadow-lg ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-                        <div className="flex items-center justify-between mb-3 px-2">
-                           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                             <Globe size={10} className="text-blue-500" /> Generation Language
-                           </label>
-                           <span className="text-[8px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">AI Active</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                           {['English', 'Hindi', 'Khortha', 'Bengali', 'Mixed (Hinglish)'].map(lang => (
-                              <button
-                                 key={lang}
-                                 onClick={() => setAiLanguage(lang)}
-                                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
-                                   aiLanguage === lang 
-                                     ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/20' 
-                                     : isDarkMode 
-                                       ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600' 
-                                       : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                                 }`}
-                              >
-                                 {lang}
-                              </button>
-                           ))}
-                        </div>
-                     </div>
-                  </div>
-
-                  {/* Generation Difficulty Selector */}
-                  <div className="mb-6 animate-in slide-in-from-top duration-500 delay-100">
-                     <div className={`p-4 rounded-[1.8rem] border shadow-lg ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-                        <div className="flex items-center justify-between mb-3 px-2">
-                           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                             <ShieldCheck size={10} className="text-emerald-500" /> Quiz Difficulty Level
-                           </label>
-                           <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full capitalize">{quizDifficulty}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                           {[
-                             { id: 'easy', label: 'Easy', desc: 'Basic Recall' },
-                             { id: 'medium', label: 'Medium', desc: 'Comprehension' },
-                             { id: 'hard', label: 'Hard', desc: 'Analysis & App' }
-                           ].map(diff => (
-                              <button
-                                 key={diff.id}
-                                 onClick={() => setQuizDifficulty(diff.id as any)}
-                                 className={`p-3 rounded-2xl text-left transition-all border ${
-                                   quizDifficulty === diff.id 
-                                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md shadow-blue-500/20' 
-                                     : isDarkMode 
-                                       ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600' 
-                                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'
-                                 }`}
-                              >
-                                 <div className="text-[10px] font-black uppercase tracking-wider">{diff.label}</div>
-                                 <div className={`text-[8px] mt-0.5 opacity-80 ${quizDifficulty === diff.id ? 'text-blue-100' : 'text-slate-400'}`}>{diff.desc}</div>
-                              </button>
-                           ))}
-                        </div>
-                     </div>
-                  </div>
-
+                <div className="pt-1">
                   {showPasteArea ? (
-                    <div className="animate-in zoom-in-95 duration-300 space-y-4">
-                       <div className={`p-6 rounded-[3rem] border shadow-2xl ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-                          <div className="flex items-center justify-between mb-6 px-2">
+                    <div className="animate-in zoom-in-95 duration-300 space-y-3">
+                       <div className={`p-4 rounded-3xl border shadow-xl ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+                          <div className="flex items-center justify-between mb-3 px-1">
                              <div>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">Smart-Detection Area</span>
-                                <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Paste JSON (Insta-Load) or Raw Text (AI Scan)</p>
+                                <span className="text-[8.5px] font-black uppercase tracking-widest text-blue-600">Smart-Detection Area</span>
+                                <p className="text-[7.5px] text-slate-400 font-bold uppercase mt-0.5">Paste JSON (Insta-Load) or Raw Text (AI Scan)</p>
                              </div>
-                             <button onClick={() => setShowPasteArea(false)} className="text-slate-400 hover:text-red-500 transition-colors p-2"><X size={20} /></button>
+                             <button onClick={() => setShowPasteArea(false)} className="text-slate-400 hover:text-red-500 transition-colors p-1"><X size={16} /></button>
                           </div>
                           <textarea 
                             value={pastedText}
                             onChange={(e) => setPastedText(e.target.value)}
                             placeholder="Paste JSON or Study Text here... (Tip: If JSON has any wrong answer ticks, click 'Auto-Verify & Fix' below!)"
-                            className={`w-full h-80 p-8 border rounded-[2.5rem] focus:ring-4 focus:ring-blue-500/10 outline-none text-sm font-medium transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
+                            className={`w-full h-60 p-4 border rounded-2xl focus:ring-2 focus:ring-blue-500/10 outline-none text-xs font-medium transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                           />
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                             <button 
                               onClick={handlePasteProcess}
-                              className="py-4 px-6 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.15em] shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                              className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl font-black text-[8px] uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
                             >
-                              <Zap size={16} fill="currentColor" className="text-amber-400" /> Direct Process
+                              <Zap size={13} fill="currentColor" className="text-amber-400" /> Direct Process
                             </button>
                             <button 
                               onClick={handleAuditAndFixPastedJson}
                               disabled={isAuditingPastedJson}
-                              className="py-4 px-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.15em] shadow-xl shadow-blue-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                              className="py-2.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-black text-[8px] uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                             >
-                              <ShieldCheck size={16} className="text-emerald-300" /> Auto-Verify & Fix With AI
+                              <ShieldCheck size={13} className="text-emerald-300" /> Auto-Verify & Fix With AI
                             </button>
                           </div>
                        </div>
@@ -1506,24 +1499,24 @@ const App: React.FC = () => {
                   ) : (
                     <>
                       <FileUpload onFileSelect={handleFileSelect} isLoading={false} />
-                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                          <button 
                           onClick={() => setShowPasteArea(true)}
-                          className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-[8.5px] uppercase tracking-widest transition-all shadow-2xs ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                          >
-                           <ClipboardList size={16} className="text-blue-500" /> Paste JSON / Text
+                           <ClipboardList size={13} className="text-blue-500" /> Paste JSON / Text
                          </button>
                          <button 
                           onClick={loadDemoJson}
-                          className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-[8.5px] uppercase tracking-widest transition-all shadow-2xs ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                          >
-                           <Zap size={16} className="text-amber-500" /> Load Demo JSON
+                           <Zap size={13} className="text-amber-500" /> Load Demo JSON
                          </button>
                          <button 
                           onClick={() => setShowJsonInfo(true)}
-                          className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-[8.5px] uppercase tracking-widest transition-all shadow-2xs ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                          >
-                           <Brackets size={16} className="text-indigo-500" /> JSON Schema
+                           <Brackets size={13} className="text-indigo-500" /> JSON Schema
                          </button>
                       </div>
                     </>
@@ -1537,26 +1530,26 @@ const App: React.FC = () => {
             )}
 
             {tab === 'AI_PROMPT' && (
-              <div className="animate-in slide-in-from-bottom-4 pt-4">
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-sm uppercase tracking-tighter">Knowledge Architect <Dna className="text-blue-600" size={16} /></h3>
+              <div className="animate-in slide-in-from-bottom-4 pt-2">
+                <h3 className="text-[11px] font-black mb-3 flex items-center gap-1.5 uppercase tracking-wider text-slate-400">Knowledge Architect <Dna className="text-blue-600" size={13} /></h3>
                 
                 {/* Generation Language Selector */}
-                <div className="mb-6 animate-in slide-in-from-top duration-500">
-                   <div className={`p-4 rounded-[1.8rem] border shadow-lg ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-                      <div className="flex items-center justify-between mb-3 px-2">
-                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                           <Globe size={10} className="text-blue-500" /> Generation Language
+                <div className="mb-3 animate-in slide-in-from-top duration-300">
+                   <div className={`p-2.5 rounded-xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+                      <div className="flex items-center justify-between mb-2 px-1">
+                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                           <Globe size={9} className="text-blue-500" /> Generation Language
                          </label>
-                         <span className="text-[8px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">AI Active</span>
+                         <span className="text-[7px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.2 rounded-md">AI Active</span>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5">
                          {['English', 'Hindi', 'Khortha', 'Bengali', 'Mixed (Hinglish)'].map(lang => (
                             <button
                                key={lang}
                                onClick={() => setAiLanguage(lang)}
-                               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                               className={`px-2.5 py-1 rounded-lg text-[8.5px] font-bold uppercase tracking-wider transition-all border ${
                                  aiLanguage === lang 
-                                   ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/20' 
+                                   ? 'bg-blue-600 text-white border-blue-500 shadow-2xs' 
                                    : isDarkMode 
                                      ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600' 
                                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
@@ -1570,15 +1563,15 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Generation Difficulty Selector */}
-                <div className="mb-6 animate-in slide-in-from-top duration-500">
-                   <div className={`p-4 rounded-[1.8rem] border shadow-lg ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-                      <div className="flex items-center justify-between mb-3 px-2">
-                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                           <ShieldCheck size={10} className="text-emerald-500" /> Quiz Difficulty Level
+                <div className="mb-3 animate-in slide-in-from-top duration-300">
+                   <div className={`p-2.5 rounded-xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+                      <div className="flex items-center justify-between mb-2 px-1">
+                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                           <ShieldCheck size={9} className="text-emerald-500" /> Quiz Difficulty Level
                          </label>
-                         <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full capitalize">{quizDifficulty}</span>
+                         <span className="text-[7px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.2 rounded-md capitalize">{quizDifficulty}</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 gap-1.5">
                          {[
                            { id: 'easy', label: 'Easy', desc: 'Basic Recall' },
                            { id: 'medium', label: 'Medium', desc: 'Comprehension' },
@@ -1587,42 +1580,42 @@ const App: React.FC = () => {
                             <button
                                key={diff.id}
                                onClick={() => setQuizDifficulty(diff.id as any)}
-                               className={`p-3 rounded-2xl text-left transition-all border ${
+                               className={`p-2 rounded-lg text-left transition-all border ${
                                  quizDifficulty === diff.id 
-                                   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-md shadow-blue-500/20' 
+                                   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-2xs' 
                                    : isDarkMode 
                                      ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600' 
                                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'
                                }`}
                             >
-                               <div className="text-[10px] font-black uppercase tracking-wider">{diff.label}</div>
-                               <div className={`text-[8px] mt-0.5 opacity-80 ${quizDifficulty === diff.id ? 'text-blue-100' : 'text-slate-400'}`}>{diff.desc}</div>
+                               <div className="text-[8.5px] font-black uppercase tracking-wider">{diff.label}</div>
+                               <div className={`text-[6.5px] mt-0.5 opacity-80 ${quizDifficulty === diff.id ? 'text-blue-100' : 'text-slate-400'}`}>{diff.desc}</div>
                             </button>
                          ))}
                       </div>
                    </div>
                 </div>
 
-                <div className={`p-8 rounded-[3.5rem] border shadow-2xl ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+                <div className={`p-3.5 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Topic for Dynamic Learning</label>
-                      <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="e.g. History of Rome, React Hooks, Baking science..." className={`w-full h-40 p-6 border rounded-[2rem] focus:ring-2 focus:ring-blue-500 outline-none text-sm font-medium transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`} />
+                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Topic for Dynamic Learning</label>
+                      <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="e.g. History of Rome, React Hooks, Baking science..." className={`w-full h-24 p-2.5 border rounded-xl focus:ring-1 focus:ring-blue-500 outline-none text-xs font-medium transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`} />
                    </div>
-                   <button onClick={handleAiQuizGenerate} disabled={!aiPrompt.trim()} className="w-full mt-6 py-5 bg-blue-600 text-white rounded-[1.8rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/30 active:scale-95 transition-all">Launch Session</button>
+                   <button onClick={handleAiQuizGenerate} disabled={!aiPrompt.trim()} className="w-full mt-3 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[8.5px] uppercase tracking-wider shadow-md active:scale-95 transition-all">Launch Session</button>
                 </div>
               </div>
             )}
 
             {tab === 'LIBRARY' && (
-               <div className="animate-in slide-in-from-bottom-4 pt-4">
-                  <div className="flex flex-col gap-4 mb-6">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Learning Vault (Practice & Tests)</h3>
+               <div className="animate-in slide-in-from-bottom-4 pt-2">
+                  <div className="flex flex-col gap-2.5 mb-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Learning Vault (Practice & Tests)</h3>
                       {/* Main Category Filter Pills */}
-                      <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 custom-scrollbar">
+                      <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 custom-scrollbar">
                         <button 
                           onClick={() => { setSelectedCategoryFilter('ALL'); setSelectedSubCategoryFilter('ALL'); }} 
-                          className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-md' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                          className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-2xs' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
                         >
                           All Categories
                         </button>
@@ -1630,7 +1623,7 @@ const App: React.FC = () => {
                           <button 
                             key={c.id} 
                             onClick={() => { setSelectedCategoryFilter(c.id); setSelectedSubCategoryFilter('ALL'); }} 
-                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-blue-600 text-white shadow-md' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                            className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-blue-600 text-white shadow-2xs' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
                           >
                             {c.name}
                           </button>
@@ -1640,11 +1633,11 @@ const App: React.FC = () => {
 
                     {/* Sub-Category Filter Pills if Main Category selected */}
                     {selectedCategoryFilter !== 'ALL' && categories.filter(c => c.parentId === selectedCategoryFilter).length > 0 && (
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 custom-scrollbar border-t border-slate-100 dark:border-slate-800 pt-3">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1">Subcategories:</span>
+                      <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar border-t border-slate-100 dark:border-slate-800 pt-2">
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mr-1">Subcategories:</span>
                         <button 
                           onClick={() => setSelectedSubCategoryFilter('ALL')} 
-                          className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all whitespace-nowrap ${selectedSubCategoryFilter === 'ALL' ? 'bg-blue-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                          className={`px-2 py-0.5 rounded text-[7.5px] font-bold transition-all whitespace-nowrap ${selectedSubCategoryFilter === 'ALL' ? 'bg-blue-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
                         >
                           All
                         </button>
@@ -1652,7 +1645,7 @@ const App: React.FC = () => {
                           <button 
                             key={sub.id} 
                             onClick={() => setSelectedSubCategoryFilter(sub.id)} 
-                            className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all whitespace-nowrap ${selectedSubCategoryFilter === sub.id ? 'bg-blue-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                            className={`px-2 py-0.5 rounded text-[7.5px] font-bold transition-all whitespace-nowrap ${selectedSubCategoryFilter === sub.id ? 'bg-blue-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
                           >
                             {sub.name}
                           </button>
@@ -1661,7 +1654,7 @@ const App: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {library
                       .filter(q => {
                         const matchesMainCat = selectedCategoryFilter === 'ALL' || q.categoryId === selectedCategoryFilter;
@@ -1672,36 +1665,36 @@ const App: React.FC = () => {
                         const catObj = categories.find(c => c.id === q.categoryId);
                         const subCatObj = categories.find(c => c.id === q.subCategoryId);
                         return (
-                          <div key={q.id} className={`group p-4 rounded-3xl border hover:shadow-xl hover:border-blue-400 transition-all flex items-center gap-3.5 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
+                          <div key={q.id} className={`group p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:shadow-xs hover:border-blue-500 transition-all flex items-center gap-2 ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}>
                             <TopicImage 
                               title={q.title} 
                               customUrl={q.thumbnailUrl || catObj?.thumbnailUrl}
-                              className="w-14 h-14 shrink-0 rounded-2xl object-cover border border-slate-200 dark:border-slate-800 shadow-sm"
+                              className="w-8 h-8 shrink-0 rounded-lg object-cover border border-slate-200 dark:border-slate-800"
                             />
                             
                             <div className="flex-1 min-w-0">
                                {editingQuizId === q.id ? (
-                                 <div className="flex items-center gap-2 my-1" onClick={e => e.stopPropagation()}>
+                                 <div className="flex items-center gap-1 my-0.5" onClick={e => e.stopPropagation()}>
                                    <input 
                                      type="text" 
                                      value={editingTitleText} 
                                      onChange={e => setEditingTitleText(e.target.value)} 
-                                     className="w-full px-3 py-1.5 text-xs font-bold border rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                                     className="w-full px-2 py-0.5 text-[10px] font-bold border rounded bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
                                    />
-                                   <button onClick={(e) => saveRenameQuiz(q.id, e)} className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shrink-0">Save</button>
+                                   <button onClick={(e) => saveRenameQuiz(q.id, e)} className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-wider shrink-0">Save</button>
                                  </div>
                                ) : (
                                  <div>
-                                   <h4 className="font-bold text-xs text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate" title={q.title}>{q.title}</h4>
-                                   <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">{q.questions.length} Questions</span>
+                                   <h4 className="font-bold text-[10px] sm:text-[10.5px] text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate" title={q.title}>{q.title}</h4>
+                                   <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                      <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">{q.questions.length} Qs</span>
                                       {catObj && (
-                                        <span className="text-[8px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                                        <span className="text-[6.5px] font-bold px-1 py-0.2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
                                           {catObj.name}
                                         </span>
                                       )}
                                       {subCatObj && (
-                                        <span className="text-[8px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                                        <span className="text-[6.5px] font-bold px-1 py-0.2 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
                                           {subCatObj.name}
                                         </span>
                                       )}
@@ -1710,24 +1703,24 @@ const App: React.FC = () => {
                                )}
                             </div>
 
-                             <div className="flex items-center gap-1.5 shrink-0">
+                             <div className="flex items-center gap-1 shrink-0">
                                <button 
                                  onClick={() => handleInitiateQuiz(q)}
-                                 className="px-3 py-1.5 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-sm active:scale-95 flex items-center gap-1"
+                                 className="px-2 py-0.5 bg-blue-600 text-white rounded-lg font-black text-[8px] uppercase tracking-wider hover:bg-blue-700 transition-all shadow-2xs active:scale-95 flex items-center gap-0.5"
                                >
-                                 <Play size={12} fill="currentColor" /> Start
+                                 <Play size={8} fill="currentColor" /> Start
                                </button>
                                <div className="relative">
                                  <button 
                                    onClick={(e) => { e.stopPropagation(); setActiveMenuQuizId(activeMenuQuizId === q.id ? null : q.id); }}
-                                   className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                                   className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all"
                                    title="More Options"
                                  >
-                                   <MoreVertical size={16} />
+                                   <MoreVertical size={12} />
                                  </button>
 
                                  {activeMenuQuizId === q.id && (
-                                   <div className="absolute right-0 top-full mt-1 w-48 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                                   <div className="absolute right-0 top-full mt-1 w-40 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150">
                                      <button 
                                        onClick={(e) => { 
                                          e.stopPropagation();
@@ -1735,15 +1728,15 @@ const App: React.FC = () => {
                                          setAuditTargetQuiz(q);
                                          setShowAiAuditModal(true);
                                        }}
-                                       className="w-full text-left px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2"
+                                       className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-1.5"
                                      >
-                                       <ShieldCheck size={13} /> AI Audit & Fix Keys
+                                       <ShieldCheck size={11} /> AI Audit & Fix Keys
                                      </button>
                                      <button 
                                        onClick={(e) => { setActiveMenuQuizId(null); startRenameQuiz(q, e); }}
-                                       className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
+                                       className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5"
                                      >
-                                       <Edit2 size={13} /> Rename
+                                       <Edit2 size={11} /> Rename
                                      </button>
                                      <button 
                                        onClick={(e) => { 
@@ -1752,20 +1745,20 @@ const App: React.FC = () => {
                                          setTransferCatId(q.categoryId || '');
                                          setTransferSubCatId(q.subCategoryId || '');
                                        }}
-                                       className="w-full text-left px-3 py-2 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2"
+                                       className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-1.5"
                                      >
-                                       <FolderPlus size={13} /> Transfer Category
+                                       <FolderPlus size={11} /> Transfer Category
                                      </button>
-                                     <div className="h-px bg-slate-100 dark:bg-slate-800 my-1 mx-2" />
+                                     <div className="h-px bg-slate-100 dark:bg-slate-800 my-0.5 mx-1.5" />
                                      <button 
                                        onClick={(e) => {
                                          e.stopPropagation();
                                          setActiveMenuQuizId(null);
                                          setQuizToDelete(q.id);
                                        }} 
-                                       className="w-full text-left px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                       className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-1.5"
                                      >
-                                       <Trash2 size={13} /> Delete Quiz
+                                       <Trash2 size={11} /> Delete Quiz
                                      </button>
                                    </div>
                                  )}
@@ -1779,48 +1772,48 @@ const App: React.FC = () => {
                       const matchesSubCat = selectedSubCategoryFilter === 'ALL' || q.subCategoryId === selectedSubCategoryFilter;
                       return matchesMainCat && matchesSubCat;
                     }).length === 0 && (
-                      <div className="col-span-full py-20 text-center opacity-40 text-xs font-bold uppercase tracking-widest">No quizzes found in this category...</div>
+                      <div className="col-span-full py-12 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">No quizzes found in this category...</div>
                     )}
                   </div>
                </div>
             )}
 
             {tab === 'SAVED' && (
-               <div className="animate-in slide-in-from-bottom-4 pt-4">
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Mastery Pins</h3>
-                    {bookmarks.length > 0 && <button onClick={startBookmarkPractice} className="px-6 py-3 bg-emerald-600 text-white rounded-[1.5rem] font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg active:scale-95 transition-all"><Play size={14} fill="currentColor" /> Practice Session ({bookmarks.length})</button>}
+               <div className="animate-in slide-in-from-bottom-4 pt-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mastery Pins</h3>
+                    {bookmarks.length > 0 && <button onClick={startBookmarkPractice} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl font-bold text-[8.5px] uppercase tracking-widest flex items-center gap-1 shadow-sm active:scale-95 transition-all"><Play size={11} fill="currentColor" /> Practice Session ({bookmarks.length})</button>}
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-2.5">
                     {bookmarks.map((b, i) => (
-                      <div key={i} className={`p-6 md:p-8 rounded-[2.5rem] border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
-                         <div className="flex items-start justify-between gap-4 mb-3">
-                           <h4 className="text-sm md:text-base font-bold leading-relaxed">{b.question.question}</h4>
+                      <div key={i} className={`p-3 sm:p-4 rounded-xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-2xs'}`}>
+                         <div className="flex items-start justify-between gap-2 mb-2">
+                           <h4 className="text-xs font-bold leading-snug">{b.question.question}</h4>
                            <button
                              onClick={() => {
                                setExplainModalQuestion(b.question);
                                setExplainModalUserSelected(null);
                                setShowAiExplainModal(true);
                              }}
-                             className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
+                             className="px-2 py-0.5 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs active:scale-95 transition-all shrink-0"
                            >
-                             <Sparkles size={13} className="text-amber-300" /> AI Explain
+                             <Sparkles size={10} className="text-amber-300" /> AI Explain
                            </button>
                          </div>
                          
                          {b.question.options && (
-                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 my-3">
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 my-2">
                              {b.question.options.map((opt, optIdx) => (
                                <div 
                                  key={optIdx} 
-                                 className={`p-2.5 rounded-xl text-xs flex items-center gap-2 border ${optIdx === b.question.correctAnswerIndex ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
+                                 className={`p-1.5 rounded-lg text-[9.5px] flex items-center gap-1.5 border ${optIdx === b.question.correctAnswerIndex ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
                                >
-                                 <span className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black bg-white dark:bg-slate-700 border shrink-0">
+                                 <span className="w-4 h-4 rounded flex items-center justify-center text-[7.5px] font-black bg-white dark:bg-slate-700 border shrink-0">
                                    {String.fromCharCode(65 + optIdx)}
                                  </span>
                                  <span className="truncate">{opt}</span>
                                  {optIdx === b.question.correctAnswerIndex && (
-                                   <span className="ml-auto text-[8px] font-black uppercase text-emerald-600">Correct</span>
+                                   <span className="ml-auto text-[7px] font-black uppercase text-emerald-600">Correct</span>
                                  )}
                                </div>
                              ))}
@@ -1828,7 +1821,7 @@ const App: React.FC = () => {
                          )}
 
                          {b.question.explanation && (
-                           <p className="text-[11px] text-slate-500 dark:text-slate-400 italic border-l-4 border-blue-500 pl-4 py-1 leading-relaxed mt-2">{b.question.explanation}</p>
+                           <p className="text-[9.5px] text-slate-500 dark:text-slate-400 italic border-l-2 border-blue-500 pl-2 py-0.5 leading-relaxed mt-1.5">{b.question.explanation}</p>
                          )}
                       </div>
                     ))}
@@ -1986,180 +1979,33 @@ const App: React.FC = () => {
           />
         )}
 
-        {appState === 'RESULTS' && results && quiz && (() => {
-          const score = calculateScoreData();
-          return (
-            <div className="max-w-2xl mx-auto animate-in zoom-in-95 pt-6 pb-20 px-4">
-               <div className={`rounded-[2.5rem] p-6 sm:p-10 shadow-2xl border text-center ${isDarkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-slate-100'}`}>
-                  <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 shadow-inner">
-                     <Trophy size={36} />
-                  </div>
-                  
-                  <h2 className="text-2xl sm:text-3xl font-black mb-1 tracking-tight uppercase italic">Test Summary & Marks</h2>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-6">
-                    Mode: <strong className="text-blue-600 dark:text-blue-400">{quizConfig.mode === 'PRACTICE' ? 'Practice Mode' : 'Quiz Exam Mode'}</strong>
-                  </p>
-
-                  {/* Main Score Banner */}
-                  <div className="mb-6 p-6 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xl shadow-blue-500/20">
-                     <span className="text-[10px] font-black uppercase tracking-widest text-blue-200 block mb-1">Final Score Obtained</span>
-                     <div className="text-4xl sm:text-5xl font-black tracking-tight">
-                        {score.finalMarks} <span className="text-xl sm:text-2xl font-bold text-blue-200">/ {score.totalPossibleMarks} Marks</span>
-                     </div>
-                  </div>
-
-                  {/* Score Breakdown Grid */}
-                  <div className="grid grid-cols-2 gap-3 mb-6 text-left">
-                     <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40">
-                        <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">Correct (+{score.posMarks}/Q)</span>
-                        <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">+{score.positiveEarned} <span className="text-xs font-bold text-slate-400">({score.correct} Qs)</span></p>
-                     </div>
-
-                     <div className="p-4 rounded-2xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/40">
-                        <span className="text-[9px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider block">Penalty (-{score.negMarks}/Q)</span>
-                        <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5">-{score.negativeDeducted} <span className="text-xs font-bold text-slate-400">({score.incorrect} Qs)</span></p>
-                     </div>
-
-                     <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-slate-800/60 border border-blue-100/40 dark:border-slate-700/60">
-                        <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider block">Leaderboard PTS</span>
-                        <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-0.5">+{score.points} <span className="text-xs font-bold text-slate-400">PTS</span></p>
-                     </div>
-
-                     <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/60">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Accuracy Rate</span>
-                        <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-0.5">{score.accuracy}%</p>
-                     </div>
-                  </div>
-
-                  {/* Summary Bar */}
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-100/70 dark:bg-slate-800/40 text-[11px] font-bold text-slate-500 mb-8">
-                     <span>Total Qs: <strong className="text-slate-900 dark:text-white">{score.totalQuestions}</strong></span>
-                     <span>Attempted: <strong className="text-slate-900 dark:text-white">{score.attempted}</strong></span>
-                     <span>Time: <strong className="text-slate-900 dark:text-white">{Math.floor(score.totalTime / 60)}m {score.totalTime % 60}s</strong></span>
-                  </div>
-
-                  {/* DETAILED QUESTION SOLUTION BREAKDOWN & ANSWER KEY */}
-                  <div className="text-left mt-8 pt-8 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                          <CheckCircle2 size={18} className="text-emerald-500" /> Question & Answer Key Solutions
-                        </h3>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                          Detailed breakdown of your choices vs correct answers
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      {quiz.questions.map((q, idx) => {
-                        const userAnswer = results.find(a => 
-                          a.questionIndex !== undefined ? a.questionIndex === idx : a.questionId === q.id
-                        );
-                        const selectedIdx = userAnswer ? userAnswer.selectedOptionIndex : null;
-                        const isCorrect = selectedIdx === q.correctAnswerIndex;
-                        const isSkipped = selectedIdx === null;
-
-                        return (
-                          <div 
-                            key={q.id || idx}
-                            className={`p-4 rounded-2xl border transition-all ${
-                              isCorrect 
-                                ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40' 
-                                : isSkipped 
-                                  ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700' 
-                                  : 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <span className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400">
-                                Q{idx + 1}
-                              </span>
-                              <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
-                                isCorrect 
-                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300' 
-                                  : isSkipped 
-                                    ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300' 
-                                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300'
-                              }`}>
-                                {isCorrect ? '✓ Correct' : isSkipped ? 'Skipped' : '✕ Incorrect'}
-                              </span>
-                            </div>
-
-                            <p className="font-bold text-xs text-slate-800 dark:text-white mb-3 leading-snug">
-                              {q.question}
-                            </p>
-
-                            <div className="space-y-1.5 mb-3">
-                              {q.options.map((opt, optIdx) => {
-                                const isOptionCorrect = optIdx === q.correctAnswerIndex;
-                                const isOptionSelected = optIdx === selectedIdx;
-
-                                let optBg = 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300';
-                                if (isOptionCorrect) {
-                                  optBg = 'bg-emerald-100/80 dark:bg-emerald-900/40 border-emerald-400 text-emerald-900 dark:text-emerald-200 font-extrabold';
-                                } else if (isOptionSelected && !isOptionCorrect) {
-                                  optBg = 'bg-rose-100/80 dark:bg-rose-900/40 border-rose-400 text-rose-900 dark:text-rose-200 font-extrabold';
-                                }
-
-                                return (
-                                  <div 
-                                    key={optIdx}
-                                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between ${optBg}`}
-                                  >
-                                    <span className="flex items-center gap-2">
-                                      <strong className="text-[10px] uppercase">{String.fromCharCode(65 + optIdx)}.</strong>
-                                      <span>{opt}</span>
-                                    </span>
-                                    {isOptionCorrect && (
-                                      <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white">Correct Answer</span>
-                                    )}
-                                    {isOptionSelected && !isOptionCorrect && (
-                                      <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-600 text-white">Your Pick</span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed flex flex-col gap-2">
-                              <div className="flex items-center justify-between">
-                                <strong className="text-blue-600 dark:text-blue-400 font-extrabold text-[9px] uppercase tracking-wider">
-                                  Explanation & Concepts:
-                                </strong>
-                                <button
-                                  onClick={() => {
-                                    setExplainModalQuestion(q);
-                                    setExplainModalUserSelected(selectedIdx);
-                                    setShowAiExplainModal(true);
-                                  }}
-                                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm active:scale-95 transition-all"
-                                >
-                                  <Sparkles size={11} className="text-amber-300" /> AI Explain
-                                </button>
-                              </div>
-                              <p className="text-slate-600 dark:text-slate-300">
-                                {q.explanation || "No default explanation attached. Click 'AI Explain' to get complete pedagogical breakdown!"}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="mt-8">
-                    <button 
-                      onClick={restart} 
-                      className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
-                    >
-                       <Home size={18} /> Return To Dashboard
-                    </button>
-                  </div>
-               </div>
-            </div>
-          );
-        })()}
+        {appState === 'RESULTS' && results && quiz && (
+          <TestSummary
+            quiz={quiz}
+            quizConfig={quizConfig}
+            results={results}
+            score={calculateScoreData()}
+            isDarkMode={isDarkMode}
+            onRestart={restart}
+            onRetake={() => handleInitiateQuiz(quiz)}
+            onRetakeIncorrect={(incorrectQs) => {
+              const retryQuiz: QuizType = {
+                ...quiz,
+                id: 'retry-' + Date.now(),
+                title: `Retry Weak Spots: ${quiz.title}`,
+                questions: incorrectQs
+              };
+              handleInitiateQuiz(retryQuiz);
+            }}
+            onBookmark={handleBookmark}
+            savedIds={new Set(bookmarks.map(b => b.question.id))}
+            onExplain={(q, selectedIdx) => {
+              setExplainModalQuestion(q);
+              setExplainModalUserSelected(selectedIdx);
+              setShowAiExplainModal(true);
+            }}
+          />
+        )}
 
         {tab === 'LEADERBOARD' && appState === 'IDLE' && (
           <Leaderboard />
@@ -2513,7 +2359,7 @@ const App: React.FC = () => {
       )}
 
       {appState === 'IDLE' && (
-        <nav className={`fixed bottom-5 left-1/2 -translate-x-1/2 backdrop-blur-xl border px-2 py-1.5 rounded-full shadow-2xl shadow-blue-500/10 flex items-center gap-1 z-[90] ${isDarkMode ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200/60'}`}>
+        <nav className={`fixed bottom-4 left-1/2 -translate-x-1/2 backdrop-blur-xl border px-3 py-2.5 sm:py-3 rounded-3xl shadow-2xl shadow-blue-500/15 flex items-center gap-1.5 sm:gap-2 z-[90] ${isDarkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200'}`}>
            <TabButton active={tab === 'HOME'} onClick={() => navigateTo('HOME')} icon={<Home />} label="Home" isDarkMode={isDarkMode} />
            <TabButton active={tab === 'AI_PROMPT'} onClick={() => navigateTo('AI_PROMPT')} icon={<Sparkles />} label="Forge" isDarkMode={isDarkMode} />
            <TabButton active={tab === 'LIBRARY'} onClick={() => navigateTo('LIBRARY')} icon={<LayoutGrid />} label="Library" isDarkMode={isDarkMode} />
@@ -2529,8 +2375,8 @@ const App: React.FC = () => {
 };
 
 const TabButton = ({ active, onClick, icon, label, isDarkMode }: any) => (
-  <button onClick={onClick} className={`flex items-center gap-2 px-3.5 py-2 rounded-full font-black text-[9px] uppercase tracking-widest transition-all whitespace-nowrap active:scale-95 ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/70'}`}>
-    {React.cloneElement(icon, { size: 15, fill: active ? "currentColor" : "none" })}
+  <button onClick={onClick} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap active:scale-95 ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/20' : isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}>
+    {React.cloneElement(icon, { size: 18, fill: active ? "currentColor" : "none" })}
     <span className={`${active ? 'inline' : 'hidden md:inline'}`}>{label}</span>
   </button>
 );

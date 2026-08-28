@@ -363,7 +363,7 @@ app.get('/api/users', async (req, res) => {
 });
 
 app.post('/api/users/sync', async (req, res) => {
-  const { id, email, name, pointsEarned, questionsAttempted, correctAnswers, role } = req.body;
+  const { id, email, name, pointsEarned, questionsAttempted, correctAnswers, totalTimeSpent, role } = req.body;
   if (!id) return res.status(400).json({ error: 'User ID required' });
 
   const existingIdx = localStore.users.findIndex(u => u.id === id);
@@ -379,7 +379,8 @@ app.post('/api/users/sync', async (req, res) => {
       lastActive: Date.now(),
       totalPoints: (existing.totalPoints || 0) + (pointsEarned || 0),
       questionsAttempted: (existing.questionsAttempted || 0) + (questionsAttempted || 0),
-      correctAnswers: (existing.correctAnswers || 0) + (correctAnswers || 0)
+      correctAnswers: (existing.correctAnswers || 0) + (correctAnswers || 0),
+      totalTimeSpent: (existing.totalTimeSpent || 0) + (totalTimeSpent || 0)
     };
     localStore.users[existingIdx] = updatedUser;
   } else {
@@ -390,6 +391,7 @@ app.post('/api/users/sync', async (req, res) => {
       totalPoints: pointsEarned || 0,
       questionsAttempted: questionsAttempted || 0,
       correctAnswers: correctAnswers || 0,
+      totalTimeSpent: totalTimeSpent || 0,
       role: role || 'user',
       createdAt: Date.now(),
       lastActive: Date.now()
@@ -413,7 +415,8 @@ app.post('/api/users/sync', async (req, res) => {
           $inc: {
             totalPoints: pointsEarned || 0,
             questionsAttempted: questionsAttempted || 0,
-            correctAnswers: correctAnswers || 0
+            correctAnswers: correctAnswers || 0,
+            totalTimeSpent: totalTimeSpent || 0
           }
         },
         { upsert: true }

@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Medal, Award, User, Target, Sparkles, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Trophy, Medal, Award, User, Target, Sparkles, CheckCircle2, RefreshCw, Clock } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Leaderboard() {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('qf_cached_leaderboard');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { user: currentUser } = useAuth();
@@ -14,12 +21,25 @@ export default function Leaderboard() {
       const res = await fetch('/api/users');
       if (res.ok) {
         const data = await res.json();
-        // Sort descending by totalPoints
-        const sorted = data.sort((a: any, b: any) => (b.totalPoints || 0) - (a.totalPoints || 0));
-        setUsers(sorted);
+        if (Array.isArray(data)) {
+          // Sort descending by totalPoints
+          const sorted = data.sort((a: any, b: any) => (b.totalPoints || 0) - (a.totalPoints || 0));
+          setUsers(sorted);
+          localStorage.setItem('qf_cached_leaderboard', JSON.stringify(sorted));
+        }
+      } else {
+        throw new Error(`Server returned status ${res.status}`);
       }
     } catch (err) {
-      console.error("Leaderboard fetch error:", err);
+      console.warn("Leaderboard fetch fallback to local cache:", err);
+      try {
+        const saved = localStorage.getItem('qf_cached_leaderboard');
+        if (saved) {
+          setUsers(JSON.parse(saved));
+        }
+      } catch (cacheErr) {
+        console.warn("Failed to load local leaderboard cache:", cacheErr);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -37,18 +57,26 @@ export default function Leaderboard() {
   const userRankIndex = users.findIndex(u => u.id === currentUser?.uid || u.email === currentUser?.email);
   const currentUserData = userRankIndex !== -1 ? users[userRankIndex] : null;
 
+  const formatDuration = (seconds?: number) => {
+    if (!seconds || seconds <= 0) return '0s';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    if (m === 0) return `${s}s`;
+    return `${m}m ${s}s`;
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4 animate-in fade-in duration-300">
       <div className="text-center mb-8 space-y-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-black text-[10px] uppercase tracking-widest shadow-sm">
-          <Sparkles size={14} className="text-amber-500 animate-pulse" /> MongoDB Standings
+          <Sparkles size={14} className="text-amber-500 animate-pulse" /> Live Leaderboard & Rank
         </div>
         <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight flex items-center justify-center gap-3">
           <Trophy className="text-yellow-500 drop-shadow-md" size={32} /> Global Leaderboard
         </h2>
         <div className="flex items-center justify-center gap-2">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            Points (PTS): +10 PTS attempt • +5 PTS bonus correct
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+            Rank Points Rule: +1 Mark per Correct Answer
           </p>
           <button 
             onClick={() => fetchLeaderboard(true)} 
@@ -63,7 +91,7 @@ export default function Leaderboard() {
 
       {/* Current User High-Level Rank Summary Card */}
       {currentUser && (
-        <div className="mb-6 p-5 rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-xl flex items-center justify-between gap-4">
+        <div className="mb-6 p-5 rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-xl flex items-center justify-between gap-4 border-2 border-black">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl font-black border border-white/20 shadow-inner">
               {userRankIndex !== -1 ? `#${userRankIndex + 1}` : '—'}
@@ -75,12 +103,20 @@ export default function Leaderboard() {
               <p className="text-[11px] text-blue-100 font-medium mt-0.5">
                 {currentUserData?.name || currentUser.displayName || currentUser.email?.split('@')[0]}
               </p>
+              <div className="flex items-center gap-3 text-[10px] text-blue-100 font-bold mt-1.5">
+                <span className="flex items-center gap-1">
+                  <Target size={12} /> {currentUserData?.questionsAttempted || 0} Attempted
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock size={12} /> {formatDuration(currentUserData?.totalTimeSpent)} Spent
+                </span>
+              </div>
             </div>
           </div>
           <div className="text-right">
             <div className="text-2xl font-black tracking-tight">{currentUserData?.totalPoints || 0} <span className="text-xs font-bold text-yellow-300">PTS</span></div>
             <div className="text-[10px] text-blue-100 font-semibold uppercase tracking-wider flex items-center gap-1 justify-end">
-              <Target size={12} /> {currentUserData?.questionsAttempted || 0} Attempted
+              <CheckCircle2 size={12} /> {currentUserData?.correctAnswers || 0} Correct Marks
             </div>
           </div>
         </div>
@@ -91,22 +127,23 @@ export default function Leaderboard() {
           <div className="h-8 w-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-4 sm:p-6 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border-2 border-black dark:border-slate-800 rounded-[2.5rem] p-4 sm:p-6 shadow-md">
           <div className="space-y-3">
             {users.map((u, i) => {
               const isSelf = currentUser && (u.id === currentUser.uid || u.email === currentUser.email);
               const attempted = u.questionsAttempted || 0;
               const correct = u.correctAnswers || 0;
+              const timeSpent = u.totalTimeSpent || 0;
 
               return (
                 <div 
                   key={u.id || i} 
-                  className={`flex items-center gap-3.5 sm:gap-4 p-4 rounded-3xl transition-all ${
+                  className={`flex items-center gap-3.5 sm:gap-4 p-4 rounded-3xl transition-all border-2 ${
                     isSelf 
-                      ? 'bg-blue-50/90 dark:bg-blue-950/40 border-2 border-blue-500/80 shadow-md' 
+                      ? 'bg-blue-50/90 dark:bg-blue-950/40 border-blue-600 shadow-md' 
                       : i < 3 
-                        ? 'bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800' 
-                        : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/30'
+                        ? 'bg-slate-50 dark:bg-slate-800/50 border-black dark:border-slate-800' 
+                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/30'
                   }`}
                 >
                   <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center font-black text-base sm:text-lg shrink-0">
@@ -116,7 +153,7 @@ export default function Leaderboard() {
                      <span className="text-slate-400 font-bold">#{i + 1}</span>}
                   </div>
                   
-                  <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-sm font-black uppercase text-sm">
+                  <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-sm font-black uppercase text-sm border border-black/20">
                     {u.name ? u.name.charAt(0) : (u.email ? u.email.charAt(0) : 'U')}
                   </div>
                   
@@ -129,15 +166,18 @@ export default function Leaderboard() {
                         <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] font-black uppercase tracking-widest shrink-0">You</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-[10px] text-slate-400 font-bold mt-0.5">
-                      <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                    <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                      <span className="flex items-center gap-1">
                         <Target size={12} className="text-blue-500" /> {attempted} Attempted
                       </span>
                       {correct > 0 && (
                         <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                          <CheckCircle2 size={12} /> {correct} Correct
+                          <CheckCircle2 size={12} /> {correct} Correct (+{correct} Marks)
                         </span>
                       )}
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <Clock size={12} className="text-amber-500" /> {formatDuration(timeSpent)}
+                      </span>
                     </div>
                   </div>
                   

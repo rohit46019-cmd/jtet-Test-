@@ -68,19 +68,19 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, isLoading }) => {
           disabled={isLoading}
         />
         
-        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-          <div className="flex gap-4 mb-4">
-            <div className="p-4 rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-900/30">
-              <FileText size={28} />
+        <div className="flex flex-col items-center justify-center pt-4 pb-5">
+          <div className="flex gap-3 mb-3">
+            <div className="p-3 rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-900/30">
+              <FileText size={22} />
             </div>
-            <div className="p-4 rounded-2xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30">
-              <FileCode size={28} />
+            <div className="p-3 rounded-2xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30">
+              <FileCode size={22} />
             </div>
           </div>
-          <p className="mb-2 text-lg font-bold text-slate-700 dark:text-slate-200">
+          <p className="mb-1 text-xs font-bold text-slate-700 dark:text-slate-200">
             {dragActive ? "Drop file here" : "Upload PDF or JSON Quiz"}
           </p>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Drag & drop to begin analysis</p>
+          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Drag & drop to begin analysis</p>
         </div>
       </div>
     </div>

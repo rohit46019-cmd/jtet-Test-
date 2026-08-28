@@ -19,10 +19,48 @@ function getHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  if (userApiKeys.length > 0) {
-    headers['x-gemini-api-key'] = userApiKeys.join(',');
+
+  let keys = [...userApiKeys];
+
+  if (keys.length === 0 && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('qf_user_api_keys') || localStorage.getItem('gemini_api_key');
+      if (stored) {
+        if (stored.startsWith('[')) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) keys = parsed.map(k => String(k).trim()).filter(Boolean);
+        } else {
+          keys = stored.split(',').map(k => k.trim()).filter(Boolean);
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (keys.length > 0) {
+    headers['x-gemini-api-key'] = keys.join(',');
   }
   return headers;
+}
+
+async function handleResponseError(res: Response, fallbackPrefix: string): Promise<never> {
+  let errorMsg = `HTTP ${res.status}`;
+  try {
+    const text = await res.text();
+    try {
+      const errorData = JSON.parse(text);
+      if (errorData.error) errorMsg = errorData.error;
+    } catch (_) {
+      if (text && text.length < 300 && !text.includes('<!DOCTYPE') && !text.includes('<html')) {
+        errorMsg = text;
+      }
+    }
+  } catch (_) {}
+
+  if (res.status === 500 && errorMsg.includes('HTTP 500')) {
+    errorMsg = 'Server error or missing GEMINI_API_KEY environment variable on Vercel. Please add GEMINI_API_KEY in Vercel settings or enter your API key in app Settings.';
+  }
+
+  throw new Error(`${fallbackPrefix}: ${errorMsg}`);
 }
 
 export interface AuditFixResult {
@@ -56,8 +94,7 @@ export async function generateBatchQuestions(
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to generate questions (HTTP ${res.status})`);
+    await handleResponseError(res, 'Failed to generate questions');
   }
 
   const data = await res.json();
@@ -79,8 +116,7 @@ export async function generateSingleQuestion(
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to generate question (HTTP ${res.status})`);
+    await handleResponseError(res, 'Failed to generate question');
   }
 
   const data = await res.json();
@@ -103,8 +139,7 @@ export async function generateQuizFromText(
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to generate quiz from text (HTTP ${res.status})`);
+    await handleResponseError(res, 'Failed to generate quiz from text');
   }
 
   const data = await res.json();
@@ -127,8 +162,7 @@ export async function generateQuizFromPrompt(
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to generate quiz from prompt (HTTP ${res.status})`);
+    await handleResponseError(res, 'Failed to generate quiz from prompt');
   }
 
   const data = await res.json();
@@ -150,8 +184,7 @@ export async function generateDeepExplanation(
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Explanation could not be generated (HTTP ${res.status})`);
+    await handleResponseError(res, 'Explanation could not be generated');
   }
 
   const data = await res.json();
@@ -172,8 +205,7 @@ export async function auditAndFixQuizQuestions(
   });
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Quiz audit failed (HTTP ${res.status})`);
+    await handleResponseError(res, 'Quiz audit failed');
   }
 
   const data = await res.json();

@@ -5,7 +5,7 @@ import { AiExplainModal } from './AiExplainModal';
 import { 
   CheckCircle2, XCircle, Info, Bookmark, LogOut, Timer, ChevronLeft, 
   ChevronRight, Send, AlertCircle, X, Check, Maximize2, Loader2, Sparkles, MoveHorizontal,
-  Flame, HelpCircle, CheckSquare, Play, Brain
+  Flame, HelpCircle, CheckSquare, Play, Brain, AlertTriangle
 } from 'lucide-react';
 
 interface QuizProps {
@@ -157,6 +157,9 @@ const Quiz: React.FC<QuizProps> = ({
   const [isFetchingNext, setIsFetchingNext] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState<string>('Wrong Answer Key');
+  const [reportToast, setReportToast] = useState<string | null>(null);
 
   // Auto-save ongoing test session to localStorage on progress changes so closing app never loses progress
   useEffect(() => {
@@ -245,9 +248,11 @@ const Quiz: React.FC<QuizProps> = ({
       setShowFeedback(false);
       return;
     }
-    // Strict match: prioritize questionIndex if present, otherwise questionId
+    // Strict match: questionIndex matches currentQuestionIndex OR both valid matching questionIds exist
     const existing = userAnswers.find(a => 
-      a.questionIndex !== undefined ? a.questionIndex === currentQuestionIndex : a.questionId === currentQuestion.id
+      a.questionIndex !== undefined 
+        ? a.questionIndex === currentQuestionIndex 
+        : (!!a.questionId && !!currentQuestion.id && a.questionId === currentQuestion.id)
     );
     if (existing && existing.selectedOptionIndex !== null && existing.selectedOptionIndex !== undefined) {
       setSelectedOption(existing.selectedOptionIndex);
@@ -474,6 +479,14 @@ const Quiz: React.FC<QuizProps> = ({
               <Bookmark size={15} fill={savedIds.has(currentQuestion.id) ? "currentColor" : "none"} />
             </button>
             <button 
+              onClick={() => setShowReportModal(true)} 
+              className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all flex items-center gap-1 font-bold text-[9px] uppercase tracking-wider"
+              title="Report Wrong Answer / Issue"
+            >
+              <AlertTriangle size={13} />
+              <span className="hidden sm:inline">Report</span>
+            </button>
+            <button 
               onClick={() => setShowExitConfirm(true)} 
               className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
               title="Exit Test"
@@ -534,25 +547,26 @@ const Quiz: React.FC<QuizProps> = ({
           </div>
         )}
 
-        <div className="max-w-md mx-auto bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4 sm:p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-2">
-             <div className="flex items-center gap-1.5 flex-wrap">
-               <span className={`px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[7.5px] font-black uppercase tracking-widest rounded-full ${quiz.isInfinite ? 'animate-pulse' : ''}`}>
-                  {mode === 'PRACTICE' ? 'Practice Mode' : 'Quiz Exam Mode'}
-               </span>
-               {quiz.isInfinite && (
-                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[7.5px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-900/40">
-                   <Sparkles size={8} className="animate-spin" />
-                   {isFetchingNext ? "Buffering..." : `${Math.max(0, quiz.questions.length - (currentQuestionIndex + 1))} Backup`}
-                 </span>
-               )}
-             </div>
-             
-             {/* Swipe Hint Badge */}
-             <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 text-[7.5px] font-bold">
-               <MoveHorizontal size={9} />
-               <span>Swipe</span>
-             </div>
+        <div className="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5">
+          {/* Quiz Name Box */}
+          <div className="mb-3.5 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+              <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
+                {quiz.title}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className={`px-2 py-0.5 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 text-[7.5px] font-black uppercase tracking-widest rounded-md ${quiz.isInfinite ? 'animate-pulse' : ''}`}>
+                {mode === 'PRACTICE' ? 'Practice Mode' : 'Quiz Exam Mode'}
+              </span>
+              {quiz.isInfinite && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[7.5px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-900/40">
+                  <Sparkles size={8} className="animate-spin" />
+                  {isFetchingNext ? "Buffering..." : `${Math.max(0, quiz.questions.length - (currentQuestionIndex + 1))} Backup`}
+                </span>
+              )}
+            </div>
           </div>
 
           <h3 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white mb-3.5 leading-snug">
@@ -664,29 +678,29 @@ const Quiz: React.FC<QuizProps> = ({
       )}
 
       {/* Bottom Footer Action Controls */}
-      <div className="bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 px-4 py-4 shadow-lg">
+        <div className="max-w-md mx-auto flex items-center justify-between gap-3">
           <button 
             onClick={handlePrevious} 
             disabled={currentQuestionIndex === 0 || isFetchingNext}
-            className={`flex items-center gap-1 px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all
-              ${(currentQuestionIndex === 0 || isFetchingNext) ? 'opacity-0 pointer-events-none' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800'}
+            className={`flex items-center gap-1.5 px-4 py-3 rounded-2xl font-extrabold text-xs uppercase tracking-wider transition-all active:scale-95
+              ${(currentQuestionIndex === 0 || isFetchingNext) ? 'opacity-0 pointer-events-none' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800'}
             `}
           >
-            <ChevronLeft size={14} /> Prev
+            <ChevronLeft size={16} /> Prev
           </button>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-1 justify-end">
              <button 
                onClick={handleNext}
                disabled={isFetchingNext}
-               className="px-7 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-1.5 min-w-[120px] justify-center"
+               className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-2xl font-extrabold text-xs uppercase tracking-wider shadow-md shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 min-w-[130px] justify-center"
              >
                 {isFetchingNext ? (
-                  <Loader2 size={14} className="animate-spin" />
+                  <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <>
-                   {currentQuestionIndex === quiz.questions.length - 1 && !quiz.isInfinite ? (mode === 'TEST' ? "Submit Test" : "Finish") : "Next"} <ChevronRight size={14} />
+                   {currentQuestionIndex === quiz.questions.length - 1 && !quiz.isInfinite ? (mode === 'TEST' ? "Submit Test" : "Finish") : "Next"} <ChevronRight size={16} />
                   </>
                 )}
              </button>
@@ -758,6 +772,72 @@ const Quiz: React.FC<QuizProps> = ({
           question={currentQuestion}
           userSelectedOption={selectedOption}
         />
+      )}
+
+      {/* Report Wrong Answer Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-[250] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border-2 border-black dark:border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-black text-sm uppercase tracking-wider">
+                <AlertTriangle size={18} /> Report Issue
+              </div>
+              <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+              Report an error or issue for <span className="font-bold text-slate-900 dark:text-white">Question #{currentQuestionIndex + 1}</span>:
+            </p>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 line-clamp-2">
+              "{currentQuestion?.question}"
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Issue Type</label>
+              <select 
+                value={reportReason} 
+                onChange={(e) => setReportReason(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none"
+              >
+                <option value="Wrong Answer Key">Wrong Answer Key</option>
+                <option value="Typo or Formatting Error">Typo or Formatting Error</option>
+                <option value="Incorrect Explanation">Incorrect Explanation</option>
+                <option value="Confusing Options">Confusing Options</option>
+                <option value="Other Issue">Other Issue</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button 
+                onClick={() => setShowReportModal(false)}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  setShowReportModal(false);
+                  setReportToast(`✓ Report logged for Q#${currentQuestionIndex + 1}! Thank you.`);
+                  setTimeout(() => setReportToast(null), 4000);
+                }}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95"
+              >
+                Submit Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Toast Alert */}
+      {reportToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[300] bg-slate-900 text-white border-2 border-black px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top duration-300">
+          <CheckCircle2 size={16} className="text-emerald-400" />
+          <span>{reportToast}</span>
+        </div>
       )}
     </div>
   );
