@@ -17,7 +17,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // --- LOCAL DATA PERSISTENCE FALLBACK ---
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.VERCEL === '1' ? '/tmp/data' : path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'local_db.json');
 
 interface LocalData {
@@ -70,6 +70,7 @@ function saveLocalData() {
 let client: MongoClient | null = null;
 let db: any = null;
 let mongoAttemptDone = false;
+let mongoConnectionError: string | null = null;
 
 async function connectToMongoDB() {
   if (!MONGODB_URI) return null;
@@ -77,18 +78,29 @@ async function connectToMongoDB() {
   if (db) return db;
 
   try {
-    client = new MongoClient(MONGODB_URI, {
+    const newClient = new MongoClient(MONGODB_URI, {
       serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 5000,
     });
-    await client.connect();
+    await newClient.connect();
+    client = newClient;
     db = client.db('quizflash');
     console.log('Connected to MongoDB Atlas (quizflash)');
     return db;
   } catch (err: any) {
     mongoAttemptDone = true;
-    console.warn('MongoDB Atlas connection notice:', err?.message || err);
-    console.log('Operating in high-speed resilient local storage mode');
+    mongoConnectionError = err?.message || String(err);
+    if (client) {
+      try {
+        await client.close();
+      } catch (_) {}
+      client = null;
+    }
+    console.info(
+      'MongoDB Atlas notice: Authentication or connection failed (' +
+        (err?.message || 'unknown error') +
+        '). Operating smoothly on resilient local file persistence.'
+    );
     return null;
   }
 }
@@ -98,7 +110,8 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: 'ok',
     storageMode: db ? 'mongodb' : 'local_file_cache',
-    dbConnected: !!db
+    dbConnected: !!db,
+    mongoNotice: !db && mongoConnectionError ? mongoConnectionError : undefined
   });
 });
 
@@ -537,4 +550,11 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.VERCEL !== '1') {
+  startServer();
+} else {
+  // When running on Vercel, connect to MongoDB when the module loads
+  connectToMongoDB().catch(() => {});
+}
+
+export default app;
