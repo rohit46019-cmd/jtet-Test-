@@ -5,6 +5,14 @@ import cors from 'cors';
 import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
+import {
+  generateServerDeepExplanation,
+  auditAndFixServerQuizQuestions,
+  generateServerBatchQuestions,
+  generateServerSingleQuestion,
+  generateServerQuizFromText,
+  generateServerQuizFromPrompt
+} from './server/aiService.ts';
 
 dotenv.config();
 
@@ -520,6 +528,147 @@ app.post('/api/settings/quiz_config', async (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// Helper to extract custom keys from request
+function extractCustomKeys(req: express.Request): string[] | undefined {
+  const headerKey = req.headers['x-gemini-api-key'];
+  const bodyKeys = req.body?.customKeys;
+  const list: string[] = [];
+  if (typeof headerKey === 'string') {
+    list.push(...headerKey.split(',').map(s => s.trim()).filter(Boolean));
+  } else if (Array.isArray(headerKey)) {
+    list.push(...headerKey.map(s => s.trim()).filter(Boolean));
+  }
+  if (Array.isArray(bodyKeys)) {
+    list.push(...bodyKeys.map(s => String(s).trim()).filter(Boolean));
+  }
+  return list.length > 0 ? list : undefined;
+}
+
+// --- AI SERVICES API ROUTES ---
+app.post('/api/ai/explain', async (req, res) => {
+  try {
+    const { question, userSelectedOption, language } = req.body;
+    if (!question) {
+      return res.status(400).json({ error: 'Question data is required' });
+    }
+    const customKeys = extractCustomKeys(req);
+    const explanation = await generateServerDeepExplanation(
+      question,
+      userSelectedOption,
+      language || 'Hindi & English',
+      customKeys
+    );
+    res.json({ explanation });
+  } catch (err: any) {
+    console.error('[AI Route /api/ai/explain error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate explanation' });
+  }
+});
+
+app.post('/api/ai/audit', async (req, res) => {
+  try {
+    const { questions, language } = req.body;
+    if (!questions || !Array.isArray(questions)) {
+      return res.status(400).json({ error: 'Questions array is required' });
+    }
+    const customKeys = extractCustomKeys(req);
+    const result = await auditAndFixServerQuizQuestions(
+      questions,
+      language || 'Hindi/English',
+      customKeys
+    );
+    res.json(result);
+  } catch (err: any) {
+    console.error('[AI Route /api/ai/audit error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to audit questions' });
+  }
+});
+
+app.post('/api/ai/generate-batch', async (req, res) => {
+  try {
+    const { prompt, history = [], count = 6, language = 'English', difficulty = 'medium' } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+    const customKeys = extractCustomKeys(req);
+    const questions = await generateServerBatchQuestions(
+      prompt,
+      history,
+      Number(count) || 6,
+      language,
+      difficulty,
+      customKeys
+    );
+    res.json({ questions });
+  } catch (err: any) {
+    console.error('[AI Route /api/ai/generate-batch error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate batch questions' });
+  }
+});
+
+app.post('/api/ai/generate-single', async (req, res) => {
+  try {
+    const { prompt, history = [], language = 'English', difficulty = 'medium' } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+    const customKeys = extractCustomKeys(req);
+    const question = await generateServerSingleQuestion(
+      prompt,
+      history,
+      language,
+      difficulty,
+      customKeys
+    );
+    res.json({ question });
+  } catch (err: any) {
+    console.error('[AI Route /api/ai/generate-single error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate question' });
+  }
+});
+
+app.post('/api/ai/generate-from-text', async (req, res) => {
+  try {
+    const { text, totalCount = 10, language = 'English', difficulty = 'medium' } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: 'Text content is required' });
+    }
+    const customKeys = extractCustomKeys(req);
+    const quiz = await generateServerQuizFromText(
+      text,
+      Number(totalCount) || 10,
+      language,
+      difficulty,
+      customKeys
+    );
+    res.json({ quiz });
+  } catch (err: any) {
+    console.error('[AI Route /api/ai/generate-from-text error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate quiz from text' });
+  }
+});
+
+app.post('/api/ai/generate-from-prompt', async (req, res) => {
+  try {
+    const { prompt, count = 6, language = 'English', difficulty = 'medium' } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+    const customKeys = extractCustomKeys(req);
+    const quiz = await generateServerQuizFromPrompt(
+      prompt,
+      Number(count) || 6,
+      language,
+      difficulty,
+      customKeys
+    );
+    res.json({ quiz });
+  } catch (err: any) {
+    console.error('[AI Route /api/ai/generate-from-prompt error]:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate quiz' });
+  }
 });
 
 // --- VITE MIDDLEWARE SETUP ---

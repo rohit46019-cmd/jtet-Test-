@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig } from '../types';
+import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig, Question } from '../types';
 import { quizSessionService } from '../services/quizSessionService';
+import { AiExplainModal } from './AiExplainModal';
 import { 
   CheckCircle2, XCircle, Info, Bookmark, LogOut, Timer, ChevronLeft, 
   ChevronRight, Send, AlertCircle, X, Check, Maximize2, Loader2, Sparkles, MoveHorizontal,
-  Flame, HelpCircle, CheckSquare, Play
+  Flame, HelpCircle, CheckSquare, Play, Brain
 } from 'lucide-react';
 
 interface QuizProps {
@@ -43,10 +44,13 @@ const renderFormattedText = (text: string) => {
   });
 };
 
-const DecoratedExplanation: React.FC<{ explanation: string }> = ({ explanation }) => {
-  if (!explanation) return null;
+const DecoratedExplanation: React.FC<{ 
+  explanation: string; 
+  onAskAi?: () => void;
+}> = ({ explanation, onAskAi }) => {
+  if (!explanation && !onAskAi) return null;
 
-  const rawLines = explanation.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  const rawLines = (explanation || '').split(/\n+/).map(l => l.trim()).filter(Boolean);
 
   let lines: string[] = [];
   if (rawLines.length === 1 && rawLines[0].length > 100 && !rawLines[0].includes('•')) {
@@ -63,45 +67,57 @@ const DecoratedExplanation: React.FC<{ explanation: string }> = ({ explanation }
   }
 
   return (
-    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-50/90 via-indigo-50/40 to-slate-50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 shadow-md animate-in fade-in slide-in-from-bottom-2 mb-6 text-left">
-      <div className="flex items-center justify-between mb-3.5 border-b border-blue-100 dark:border-slate-800 pb-2.5">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
-            <Sparkles size={14} />
+    <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50/90 via-indigo-50/40 to-slate-50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 border border-blue-200/90 dark:border-blue-900/60 shadow-sm animate-in fade-in slide-in-from-bottom-2 mb-4 text-left">
+      <div className="flex items-center justify-between mb-2.5 border-b border-blue-100 dark:border-slate-800 pb-2 flex-wrap gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <div className="p-1 bg-blue-600 text-white rounded-md shadow-2xs">
+            <Sparkles size={12} />
           </div>
-          <span className="font-black text-[10px] uppercase tracking-widest text-blue-700 dark:text-blue-400">
+          <span className="font-black text-[9px] uppercase tracking-widest text-blue-700 dark:text-blue-400">
             Key Insights & Explanation
           </span>
         </div>
-        <span className="text-[8px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60">
-          Smart Summary
-        </span>
+        
+        <div className="flex items-center gap-1.5">
+          {onAskAi && (
+            <button
+              onClick={onAskAi}
+              className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-[8px] uppercase tracking-wider shadow-2xs active:scale-95 transition-all"
+            >
+              <Sparkles size={10} className="animate-pulse" />
+              <span>Instant AI Explanation</span>
+            </button>
+          )}
+          <span className="text-[7.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60">
+            Smart Summary
+          </span>
+        </div>
       </div>
 
-      <div className="space-y-2.5 text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
+      <div className="space-y-2 text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed">
         {lines.map((line, idx) => {
           const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('* ');
           const cleanLine = isBullet ? line.replace(/^[•\-*]\s*/, '') : line;
 
           if (isBullet) {
             return (
-              <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-blue-100 dark:border-slate-800 shadow-2xs transition-all">
-                <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 mt-1.5 shrink-0" />
-                <div className="flex-1 font-medium">{renderFormattedText(cleanLine)}</div>
+              <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-blue-100 dark:border-slate-800 shadow-2xs transition-all">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 mt-1 shrink-0" />
+                <div className="flex-1 font-medium text-[11px]">{renderFormattedText(cleanLine)}</div>
               </div>
             );
           }
 
           if (cleanLine.startsWith('**') || cleanLine.startsWith('#')) {
             return (
-              <div key={idx} className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100/80 dark:border-blue-900/40">
-                <div className="font-semibold">{renderFormattedText(cleanLine)}</div>
+              <div key={idx} className="p-2 rounded-lg bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100/80 dark:border-blue-900/40">
+                <div className="font-semibold text-[11px]">{renderFormattedText(cleanLine)}</div>
               </div>
             );
           }
 
           return (
-            <div key={idx} className="p-2 font-medium leading-relaxed">
+            <div key={idx} className="p-1 font-medium leading-relaxed text-[11px]">
               {renderFormattedText(cleanLine)}
             </div>
           );
@@ -140,6 +156,7 @@ const Quiz: React.FC<QuizProps> = ({
   const [showPalette, setShowPalette] = useState(false);
   const [isFetchingNext, setIsFetchingNext] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   // Auto-save ongoing test session to localStorage on progress changes so closing app never loses progress
   useEffect(() => {
@@ -223,10 +240,18 @@ const Quiz: React.FC<QuizProps> = ({
 
   // Sync current question's state on question change
   useEffect(() => {
-    const existing = userAnswers.find(a => a.questionId === currentQuestion.id);
-    if (existing) {
+    if (!currentQuestion) {
+      setSelectedOption(null);
+      setShowFeedback(false);
+      return;
+    }
+    // Strict match: prioritize questionIndex if present, otherwise questionId
+    const existing = userAnswers.find(a => 
+      a.questionIndex !== undefined ? a.questionIndex === currentQuestionIndex : a.questionId === currentQuestion.id
+    );
+    if (existing && existing.selectedOptionIndex !== null && existing.selectedOptionIndex !== undefined) {
       setSelectedOption(existing.selectedOptionIndex);
-      if (mode === 'PRACTICE' && existing.selectedOptionIndex !== null) {
+      if (mode === 'PRACTICE') {
         setShowFeedback(true);
       } else {
         setShowFeedback(false);
@@ -235,7 +260,7 @@ const Quiz: React.FC<QuizProps> = ({
       setSelectedOption(null);
       setShowFeedback(false);
     }
-  }, [currentQuestionIndex, userAnswers, currentQuestion.id, mode]);
+  }, [currentQuestionIndex, userAnswers, currentQuestion?.id, mode]);
 
   // Proactive Pre-fetching for Infinite Mode
   useEffect(() => {
@@ -250,34 +275,38 @@ const Quiz: React.FC<QuizProps> = ({
 
   // Option selection logic
   const handleOptionClick = (optionIdx: number) => {
+    if (!currentQuestion) return;
+    const isCorrect = optionIdx === currentQuestion.correctAnswerIndex;
+    const newAnswer: UserAnswer = {
+      questionId: currentQuestion.id,
+      questionIndex: currentQuestionIndex,
+      selectedOptionIndex: optionIdx,
+      isCorrect,
+      timeSpent: timer
+    };
+
     if (mode === 'PRACTICE') {
       // In PRACTICE mode: Tapping an option immediately validates & reveals feedback + explanation!
       if (showFeedback) return; // already locked for practice
-      const isCorrect = optionIdx === currentQuestion.correctAnswerIndex;
-      const newAnswer: UserAnswer = {
-        questionId: currentQuestion.id,
-        selectedOptionIndex: optionIdx,
-        isCorrect,
-        timeSpent: timer
-      };
       setSelectedOption(optionIdx);
       setUserAnswers(prev => {
-        const filtered = prev.filter(a => a.questionId !== currentQuestion.id);
+        const filtered = prev.filter(a => 
+          a.questionIndex !== undefined 
+            ? a.questionIndex !== currentQuestionIndex 
+            : a.questionId !== currentQuestion.id
+        );
         return [...filtered, newAnswer];
       });
       setShowFeedback(true);
     } else {
       // In TEST mode: Tapping an option selects choice, NO immediate correct answer/explanation revealed!
-      const isCorrect = optionIdx === currentQuestion.correctAnswerIndex;
-      const newAnswer: UserAnswer = {
-        questionId: currentQuestion.id,
-        selectedOptionIndex: optionIdx,
-        isCorrect,
-        timeSpent: timer
-      };
       setSelectedOption(optionIdx);
       setUserAnswers(prev => {
-        const filtered = prev.filter(a => a.questionId !== currentQuestion.id);
+        const filtered = prev.filter(a => 
+          a.questionIndex !== undefined 
+            ? a.questionIndex !== currentQuestionIndex 
+            : a.questionId !== currentQuestion.id
+        );
         return [...filtered, newAnswer];
       });
     }
@@ -285,12 +314,16 @@ const Quiz: React.FC<QuizProps> = ({
 
   const handleNext = async () => {
     if (currentQuestionIndex < quiz.questions.length - 1) {
+      setSelectedOption(null);
+      setShowFeedback(false);
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else if (quiz.isInfinite && onFetchNext) {
       setIsFetchingNext(true);
       try {
         await onFetchNext();
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
+        setSelectedOption(null);
+        setShowFeedback(false);
+        setCurrentQuestionIndex(prev => prev + 1);
       } catch (e) {
         console.error("Failed to fetch next question", e);
       } finally {
@@ -303,6 +336,8 @@ const Quiz: React.FC<QuizProps> = ({
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
+      setSelectedOption(null);
+      setShowFeedback(false);
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   };
@@ -333,9 +368,12 @@ const Quiz: React.FC<QuizProps> = ({
   };
 
   const getQuestionStatus = (index: number) => {
-    const qId = quiz.questions[index].id;
-    const answer = userAnswers.find(a => a.questionId === qId);
-    if (!answer || answer.selectedOptionIndex === null) return 'unanswered';
+    const targetQ = quiz.questions[index];
+    if (!targetQ) return 'unanswered';
+    const answer = userAnswers.find(a => 
+      a.questionIndex !== undefined ? a.questionIndex === index : a.questionId === targetQ.id
+    );
+    if (!answer || answer.selectedOptionIndex === null || answer.selectedOptionIndex === undefined) return 'unanswered';
     
     if (mode === 'PRACTICE') {
       return answer.isCorrect ? 'correct' : 'incorrect';
@@ -496,45 +534,45 @@ const Quiz: React.FC<QuizProps> = ({
           </div>
         )}
 
-        <div className="max-w-xl mx-auto">
-          <div className="mb-4 flex items-center justify-between gap-2">
-             <div className="flex items-center gap-2">
-               <span className={`px-2.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[8px] font-black uppercase tracking-widest rounded-full ${quiz.isInfinite ? 'animate-pulse' : ''}`}>
-                  {mode === 'PRACTICE' ? 'Practice Mode (Instant Feedback)' : 'Test Mode (Submit for Score)'}
+        <div className="max-w-md mx-auto bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl p-4 sm:p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-2">
+             <div className="flex items-center gap-1.5 flex-wrap">
+               <span className={`px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[7.5px] font-black uppercase tracking-widest rounded-full ${quiz.isInfinite ? 'animate-pulse' : ''}`}>
+                  {mode === 'PRACTICE' ? 'Practice Mode' : 'Quiz Exam Mode'}
                </span>
                {quiz.isInfinite && (
-                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-900/40">
-                   <Sparkles size={9} className="animate-spin" />
-                   {isFetchingNext ? "Buffering Backup Qs..." : `${Math.max(0, quiz.questions.length - (currentQuestionIndex + 1))} Backup Qs`}
+                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[7.5px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-900/40">
+                   <Sparkles size={8} className="animate-spin" />
+                   {isFetchingNext ? "Buffering..." : `${Math.max(0, quiz.questions.length - (currentQuestionIndex + 1))} Backup`}
                  </span>
                )}
              </div>
              
              {/* Swipe Hint Badge */}
-             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 text-[8px] font-bold">
-               <MoveHorizontal size={10} />
-               <span>Swipe Left/Right</span>
+             <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 text-[7.5px] font-bold">
+               <MoveHorizontal size={9} />
+               <span>Swipe</span>
              </div>
           </div>
 
-          <h3 className="text-sm md:text-base font-bold text-slate-800 dark:text-white mb-5 leading-snug">
+          <h3 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white mb-3.5 leading-snug">
             {currentQuestion.question}
           </h3>
 
-          <div className="space-y-2.5 mb-6">
+          <div className="space-y-2 mb-4">
             {currentQuestion.options.map((option, idx) => {
               const isSelected = selectedOption === idx;
               const isCorrect = idx === currentQuestion.correctAnswerIndex;
-              let btnStyle = "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800";
+              let btnStyle = "bg-slate-50/50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-800";
               
               if (mode === 'PRACTICE' && showFeedback) {
                 // Practice mode instant feedback styling
-                if (isCorrect) btnStyle = "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-500 text-emerald-700 dark:text-emerald-400 shadow-sm";
-                else if (isSelected) btnStyle = "bg-rose-50 dark:bg-rose-900/10 border-rose-500 text-rose-700 dark:text-rose-400 shadow-sm";
+                if (isCorrect) btnStyle = "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-700 dark:text-emerald-400 shadow-2xs font-semibold";
+                else if (isSelected) btnStyle = "bg-rose-50 dark:bg-rose-900/20 border-rose-500 text-rose-700 dark:text-rose-400 shadow-2xs font-semibold";
                 else btnStyle = "opacity-40 grayscale-[0.5]";
               } else if (isSelected) {
                 // Test mode / pre-feedback selected styling
-                btnStyle = "bg-blue-50 dark:bg-blue-900/30 border-blue-600 ring-2 ring-blue-500/20 text-blue-900 dark:text-blue-200 font-semibold shadow-sm";
+                btnStyle = "bg-blue-50 dark:bg-blue-900/30 border-blue-600 ring-2 ring-blue-500/20 text-blue-900 dark:text-blue-200 font-semibold shadow-2xs";
               }
 
               return (
@@ -542,16 +580,16 @@ const Quiz: React.FC<QuizProps> = ({
                   key={idx} 
                   disabled={mode === 'PRACTICE' && showFeedback} 
                   onClick={() => handleOptionClick(idx)} 
-                  className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center group ${btnStyle}`}
+                  className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center group ${btnStyle}`}
                 >
-                  <div className={`w-6 h-6 rounded-xl border flex items-center justify-center mr-3 font-black text-[10px] transition-all shrink-0
-                    ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-200 dark:border-slate-700 text-slate-400 bg-slate-50 dark:bg-slate-800'}
+                  <div className={`w-5 h-5 rounded-lg border flex items-center justify-center mr-2.5 font-black text-[9px] transition-all shrink-0
+                    ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-700 text-slate-400 bg-white dark:bg-slate-800'}
                   `}>
                     {String.fromCharCode(65 + idx)}
                   </div>
-                  <span className="font-medium text-xs leading-snug flex-1">{option}</span>
+                  <span className="font-medium text-[11px] sm:text-xs leading-snug flex-1 text-slate-800 dark:text-slate-200">{option}</span>
                   {mode === 'TEST' && isSelected && (
-                    <span className="px-2 py-0.5 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider ml-2">Selected</span>
+                    <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider ml-2">Selected</span>
                   )}
                 </button>
               );
@@ -559,7 +597,10 @@ const Quiz: React.FC<QuizProps> = ({
           </div>
 
           {mode === 'PRACTICE' && showFeedback && (
-            <DecoratedExplanation explanation={currentQuestion.explanation} />
+            <DecoratedExplanation 
+              explanation={currentQuestion.explanation} 
+              onAskAi={() => setShowAiModal(true)}
+            />
           )}
         </div>
       </div>
@@ -597,7 +638,12 @@ const Quiz: React.FC<QuizProps> = ({
                     return (
                       <button 
                         key={i}
-                        onClick={() => { setCurrentQuestionIndex(i); setShowPalette(false); }}
+                        onClick={() => { 
+                          setSelectedOption(null); 
+                          setShowFeedback(false); 
+                          setCurrentQuestionIndex(i); 
+                          setShowPalette(false); 
+                        }}
                         className={`aspect-square rounded-xl text-[10px] font-black border transition-all flex items-center justify-center
                           ${currentQuestionIndex === i ? 'ring-2 ring-blue-500 scale-105 shadow-sm' : 'border-transparent'}
                           ${status === 'correct' ? 'bg-emerald-500 text-white' : 
@@ -702,6 +748,16 @@ const Quiz: React.FC<QuizProps> = ({
               </div>
            </div>
         </div>
+      )}
+
+      {/* AI Instant Explanation Modal */}
+      {showAiModal && currentQuestion && (
+        <AiExplainModal
+          isOpen={showAiModal}
+          onClose={() => setShowAiModal(false)}
+          question={currentQuestion}
+          userSelectedOption={selectedOption}
+        />
       )}
     </div>
   );

@@ -33,6 +33,7 @@ export type TabState = 'HOME' | 'LIBRARY' | 'SAVED' | 'AI_PROMPT' | 'ADMIN' | 'L
 
 export interface UserAnswer {
   questionId: string;
+  questionIndex?: number;
   selectedOptionIndex: number | null; // null for skipped
   isCorrect: boolean;
   timeSpent?: number; // in seconds

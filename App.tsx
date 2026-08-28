@@ -14,6 +14,9 @@ import { useAuth } from './hooks/useAuth';
 import { googleDriveService } from './services/googleDriveService';
 import { phoneStorageService } from './services/phoneStorageService';
 import { PhoneStorageModal } from './components/PhoneStorageModal';
+import { AiAuditModal } from './components/AiAuditModal';
+import { AiExplainModal } from './components/AiExplainModal';
+import { auditAndFixQuizQuestions } from './services/geminiService';
 import { quizSessionService } from './services/quizSessionService';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -22,7 +25,7 @@ import {
   MessageSquare, ArrowRight, Sun, Moon, Maximize, Play, Settings, 
   ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
   ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe,
-  Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw
+  Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw, Brain, CheckSquare
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 
@@ -38,6 +41,14 @@ const App: React.FC = () => {
   const [showStoragePromptBanner, setShowStoragePromptBanner] = useState(false);
   const [storagePermissionGranted, setStoragePermissionGranted] = useState(phoneStorageService.getPermissionStatus() === 'granted');
   
+  // AI Audit and AI Explanation Modals
+  const [auditTargetQuiz, setAuditTargetQuiz] = useState<QuizType | null>(null);
+  const [showAiAuditModal, setShowAiAuditModal] = useState(false);
+  const [explainModalQuestion, setExplainModalQuestion] = useState<any | null>(null);
+  const [explainModalUserSelected, setExplainModalUserSelected] = useState<number | null | undefined>(null);
+  const [showAiExplainModal, setShowAiExplainModal] = useState(false);
+  const [isAuditingPastedJson, setIsAuditingPastedJson] = useState(false);
+
   const [library, setLibrary] = useState<StoredQuiz[]>([]);
   const [bookmarks, setBookmarks] = useState<BookmarkedQuestion[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -172,12 +183,24 @@ const App: React.FC = () => {
 
   // Checks if a quiz already has paused progress; if yes, shows Resume or Start Fresh modal
   const handleInitiateQuiz = (targetQuiz: QuizType) => {
-    const saved = quizSessionService.getSessionForQuiz(targetQuiz);
+    // Sanitize question IDs to ensure they are strictly unique
+    const seenIds = new Set<string>();
+    const sanitizedQuestions = targetQuiz.questions.map(q => {
+      let id = q.id;
+      if (!id || seenIds.has(id)) {
+        id = crypto.randomUUID();
+      }
+      seenIds.add(id);
+      return { ...q, id };
+    });
+    const sanitizedQuiz = { ...targetQuiz, questions: sanitizedQuestions };
+
+    const saved = quizSessionService.getSessionForQuiz(sanitizedQuiz);
     if (saved && (saved.currentQuestionIndex > 0 || (saved.userAnswers && saved.userAnswers.length > 0) || (saved.timer && saved.timer > 0))) {
       setResumeModalSession(saved);
     } else {
       setPausedQuizState(null);
-      setPendingQuizToStart(targetQuiz);
+      setPendingQuizToStart(sanitizedQuiz);
     }
   };
 
@@ -599,6 +622,43 @@ const App: React.FC = () => {
     return false;
   };
 
+  const handleAuditAndFixPastedJson = async () => {
+    const trimmed = pastedText.trim();
+    if (!trimmed) {
+      setError("Please paste your Quiz JSON first.");
+      return;
+    }
+
+    try {
+      setIsAuditingPastedJson(true);
+      setError(null);
+      const parsed = JSON.parse(trimmed);
+      if (!parsed.questions || !Array.isArray(parsed.questions)) {
+        throw new Error("Invalid Quiz JSON format. Missing 'questions' array.");
+      }
+
+      const tempQuiz: QuizType = {
+        id: parsed.id || crypto.randomUUID(),
+        title: parsed.title || "Audited Quiz",
+        questions: parsed.questions.map((q: any) => ({
+          ...q,
+          id: q.id || crypto.randomUUID()
+        })),
+        createdAt: Date.now()
+      };
+
+      // Open AI Audit Modal for visual feedback and confirmation
+      setAuditTargetQuiz(tempQuiz);
+      setShowAiAuditModal(true);
+      setPastedText('');
+      setShowPasteArea(false);
+    } catch (err: any) {
+      setError(err.message || "Failed to parse JSON. Please check formatting.");
+    } finally {
+      setIsAuditingPastedJson(false);
+    }
+  };
+
   const handleFileSelect = async (file: File) => {
     try {
       setError(null);
@@ -676,9 +736,22 @@ const App: React.FC = () => {
       setError(null);
       setAppState('GENERATING_QUIZ');
       const generatedQuiz = await generateQuizFromPrompt(aiPrompt, 6, aiLanguage, quizDifficulty); 
-      saveToLibrary(generatedQuiz);
+      // Ensure all questions have unique UUIDs
+      const seenIds = new Set<string>();
+      const sanitizedQuiz: QuizType = {
+        ...generatedQuiz,
+        questions: generatedQuiz.questions.map(q => {
+          let id = q.id;
+          if (!id || seenIds.has(id)) {
+            id = crypto.randomUUID();
+          }
+          seenIds.add(id);
+          return { ...q, id };
+        })
+      };
+      saveToLibrary(sanitizedQuiz);
       setAppState('IDLE');
-      handleInitiateQuiz(generatedQuiz);
+      handleInitiateQuiz(sanitizedQuiz);
     } catch (err: any) {
       setError(err.message || "AI Prompt failed.");
       setAppState('IDLE');
@@ -691,10 +764,22 @@ const App: React.FC = () => {
       const history = quiz.questions.map(q => q.question);
       const newQuestions = await generateBatchQuestions(quiz.originalPrompt, history, 6, quiz.language || 'English');
       if (newQuestions && newQuestions.length > 0) {
-        setQuiz(prev => prev ? {
-          ...prev,
-          questions: [...prev.questions, ...newQuestions]
-        } : null);
+        setQuiz(prev => {
+          if (!prev) return null;
+          const existingIds = new Set(prev.questions.map(q => q.id));
+          const uniqueNewQuestions = newQuestions.map(q => {
+            let id = q.id;
+            if (!id || existingIds.has(id)) {
+              id = crypto.randomUUID();
+            }
+            existingIds.add(id);
+            return { ...q, id };
+          });
+          return {
+            ...prev,
+            questions: [...prev.questions, ...uniqueNewQuestions]
+          };
+        });
       }
     } catch (err: any) {
       console.error("Failed to generate backup questions", err);
@@ -1398,15 +1483,24 @@ const App: React.FC = () => {
                           <textarea 
                             value={pastedText}
                             onChange={(e) => setPastedText(e.target.value)}
-                            placeholder="Paste JSON or Study Text here..."
+                            placeholder="Paste JSON or Study Text here... (Tip: If JSON has any wrong answer ticks, click 'Auto-Verify & Fix' below!)"
                             className={`w-full h-80 p-8 border rounded-[2.5rem] focus:ring-4 focus:ring-blue-500/10 outline-none text-sm font-medium transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                           />
-                          <button 
-                            onClick={handlePasteProcess}
-                            className="w-full mt-6 py-6 bg-blue-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
-                          >
-                            <Zap size={18} fill="currentColor" /> Process Content
-                          </button>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            <button 
+                              onClick={handlePasteProcess}
+                              className="py-4 px-6 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.15em] shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                              <Zap size={16} fill="currentColor" className="text-amber-400" /> Direct Process
+                            </button>
+                            <button 
+                              onClick={handleAuditAndFixPastedJson}
+                              disabled={isAuditingPastedJson}
+                              className="py-4 px-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.15em] shadow-xl shadow-blue-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                              <ShieldCheck size={16} className="text-emerald-300" /> Auto-Verify & Fix With AI
+                            </button>
+                          </div>
                        </div>
                     </div>
                   ) : (
@@ -1633,7 +1727,18 @@ const App: React.FC = () => {
                                  </button>
 
                                  {activeMenuQuizId === q.id && (
-                                   <div className="absolute right-0 top-full mt-1 w-44 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50">
+                                   <div className="absolute right-0 top-full mt-1 w-48 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                                     <button 
+                                       onClick={(e) => { 
+                                         e.stopPropagation();
+                                         setActiveMenuQuizId(null); 
+                                         setAuditTargetQuiz(q);
+                                         setShowAiAuditModal(true);
+                                       }}
+                                       className="w-full text-left px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2"
+                                     >
+                                       <ShieldCheck size={13} /> AI Audit & Fix Keys
+                                     </button>
                                      <button 
                                        onClick={(e) => { setActiveMenuQuizId(null); startRenameQuiz(q, e); }}
                                        className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
@@ -1688,9 +1793,43 @@ const App: React.FC = () => {
                   </div>
                   <div className="space-y-4">
                     {bookmarks.map((b, i) => (
-                      <div key={i} className={`p-8 rounded-[2.5rem] border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
-                         <h4 className="text-base font-bold mb-4 leading-relaxed">{b.question.question}</h4>
-                         <p className="text-[11px] text-slate-500 dark:text-slate-400 italic border-l-4 border-blue-500 pl-5 py-1 leading-relaxed">{b.question.explanation}</p>
+                      <div key={i} className={`p-6 md:p-8 rounded-[2.5rem] border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
+                         <div className="flex items-start justify-between gap-4 mb-3">
+                           <h4 className="text-sm md:text-base font-bold leading-relaxed">{b.question.question}</h4>
+                           <button
+                             onClick={() => {
+                               setExplainModalQuestion(b.question);
+                               setExplainModalUserSelected(null);
+                               setShowAiExplainModal(true);
+                             }}
+                             className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md active:scale-95 transition-all shrink-0"
+                           >
+                             <Sparkles size={13} className="text-amber-300" /> AI Explain
+                           </button>
+                         </div>
+                         
+                         {b.question.options && (
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 my-3">
+                             {b.question.options.map((opt, optIdx) => (
+                               <div 
+                                 key={optIdx} 
+                                 className={`p-2.5 rounded-xl text-xs flex items-center gap-2 border ${optIdx === b.question.correctAnswerIndex ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}
+                               >
+                                 <span className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black bg-white dark:bg-slate-700 border shrink-0">
+                                   {String.fromCharCode(65 + optIdx)}
+                                 </span>
+                                 <span className="truncate">{opt}</span>
+                                 {optIdx === b.question.correctAnswerIndex && (
+                                   <span className="ml-auto text-[8px] font-black uppercase text-emerald-600">Correct</span>
+                                 )}
+                               </div>
+                             ))}
+                           </div>
+                         )}
+
+                         {b.question.explanation && (
+                           <p className="text-[11px] text-slate-500 dark:text-slate-400 italic border-l-4 border-blue-500 pl-4 py-1 leading-relaxed mt-2">{b.question.explanation}</p>
+                         )}
                       </div>
                     ))}
                   </div>
@@ -1810,7 +1949,16 @@ const App: React.FC = () => {
                 
                 finalQuiz = { ...finalQuiz, questions: shuffledQuestions };
               }
-              setQuiz(finalQuiz);
+              const seenIds = new Set<string>();
+              const sanitizedQuestions = finalQuiz.questions.map(q => {
+                let id = q.id;
+                if (!id || seenIds.has(id)) {
+                  id = crypto.randomUUID();
+                }
+                seenIds.add(id);
+                return { ...q, id };
+              });
+              setQuiz({ ...finalQuiz, questions: sanitizedQuestions });
               setPendingQuizToStart(null);
               setAppState('QUIZ_IN_PROGRESS');
             }}
@@ -1905,7 +2053,9 @@ const App: React.FC = () => {
 
                     <div className="space-y-4">
                       {quiz.questions.map((q, idx) => {
-                        const userAnswer = results.find(a => a.questionId === q.id);
+                        const userAnswer = results.find(a => 
+                          a.questionIndex !== undefined ? a.questionIndex === idx : a.questionId === q.id
+                        );
                         const selectedIdx = userAnswer ? userAnswer.selectedOptionIndex : null;
                         const isCorrect = selectedIdx === q.correctAnswerIndex;
                         const isSkipped = selectedIdx === null;
@@ -1972,12 +2122,26 @@ const App: React.FC = () => {
                               })}
                             </div>
 
-                            {q.explanation && (
-                              <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
-                                <strong className="text-blue-600 dark:text-blue-400 block mb-0.5 font-extrabold text-[9px] uppercase tracking-wider">Explanation:</strong>
-                                {q.explanation}
+                            <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed flex flex-col gap-2">
+                              <div className="flex items-center justify-between">
+                                <strong className="text-blue-600 dark:text-blue-400 font-extrabold text-[9px] uppercase tracking-wider">
+                                  Explanation & Concepts:
+                                </strong>
+                                <button
+                                  onClick={() => {
+                                    setExplainModalQuestion(q);
+                                    setExplainModalUserSelected(selectedIdx);
+                                    setShowAiExplainModal(true);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm active:scale-95 transition-all"
+                                >
+                                  <Sparkles size={11} className="text-amber-300" /> AI Explain
+                                </button>
                               </div>
-                            )}
+                              <p className="text-slate-600 dark:text-slate-300">
+                                {q.explanation || "No default explanation attached. Click 'AI Explain' to get complete pedagogical breakdown!"}
+                              </p>
+                            </div>
                           </div>
                         );
                       })}
@@ -2289,6 +2453,62 @@ const App: React.FC = () => {
             setSuccessMessage("✓ Dual-Sync completed with MongoDB & Local Storage!");
             setTimeout(() => setSuccessMessage(null), 4000);
           }}
+        />
+      )}
+
+      {/* AI AUDIT & FIX MODAL */}
+      {showAiAuditModal && auditTargetQuiz && (
+        <AiAuditModal
+          isOpen={showAiAuditModal}
+          onClose={() => {
+            setShowAiAuditModal(false);
+            setAuditTargetQuiz(null);
+          }}
+          quiz={auditTargetQuiz}
+          isDarkMode={isDarkMode}
+          onApplyFixedQuiz={(updatedQuiz) => {
+            // If quiz exists in library, update it
+            const existingIdx = library.findIndex(l => l.quiz.id === updatedQuiz.id);
+            if (existingIdx !== -1) {
+              const updatedLib = [...library];
+              updatedLib[existingIdx] = {
+                ...updatedLib[existingIdx],
+                quiz: updatedQuiz
+              };
+              setLibrary(updatedLib);
+              localStorage.setItem('quizzly_library', JSON.stringify(updatedLib));
+            } else {
+              // If it's a newly audited quiz (e.g. from pasted JSON), add it to library
+              const newStored: StoredQuiz = {
+                quiz: updatedQuiz,
+                savedAt: Date.now()
+              };
+              const updatedLib = [newStored, ...library];
+              setLibrary(updatedLib);
+              localStorage.setItem('quizzly_library', JSON.stringify(updatedLib));
+            }
+
+            if (activeQuiz && activeQuiz.id === updatedQuiz.id) {
+              setActiveQuiz(updatedQuiz);
+            }
+            setSuccessMessage(`✓ AI Audit applied! ${updatedQuiz.questions.length} questions verified & updated.`);
+            setTimeout(() => setSuccessMessage(null), 4000);
+          }}
+        />
+      )}
+
+      {/* AI INSTANT EXPLANATION MODAL */}
+      {showAiExplainModal && explainModalQuestion && (
+        <AiExplainModal
+          isOpen={showAiExplainModal}
+          onClose={() => {
+            setShowAiExplainModal(false);
+            setExplainModalQuestion(null);
+            setExplainModalUserSelected(null);
+          }}
+          question={explainModalQuestion}
+          userSelectedOption={explainModalUserSelected}
+          isDarkMode={isDarkMode}
         />
       )}
 
