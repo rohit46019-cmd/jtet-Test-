@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig, Question } from '../types';
 import { quizSessionService } from '../services/quizSessionService';
 import { phoneStorageService } from '../services/phoneStorageService';
@@ -39,6 +40,122 @@ const normalizeExplanationText = (text: string): string => {
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .trim();
+};
+
+const highlightQuestionText = (text: string) => {
+  if (!text) return null;
+
+  // 1. If text already has markdown asterisks (**bold** or *italic*), format them with vivid highlight styling
+  if (text.includes('**') || text.includes('*')) {
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return (
+          <span 
+            key={idx} 
+            className="inline-block font-black text-amber-900 dark:text-amber-200 bg-amber-200/80 dark:bg-amber-500/25 px-1.5 py-0.5 rounded-md border border-amber-300 dark:border-amber-500/40 mx-0.5 shadow-2xs"
+          >
+            {part.slice(2, -2)}
+          </span>
+        );
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+        return (
+          <span 
+            key={idx} 
+            className="inline-block font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-100/80 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/40 mx-0.5"
+          >
+            {part.slice(1, -1)}
+          </span>
+        );
+      }
+      return <span key={idx}>{part}</span>;
+    });
+  }
+
+  // 2. High-priority Key Question Markers (Hindi & English keywords like 'NOT', 'INCORRECT', 'कहाँ', 'किसने', etc.)
+  // We match critical question words, negative markers, quotes, and core directives
+  const pattern = /(["'“‘][^"'“”]+?["'”’]|\bNOT\b|\bINCORRECT\b|\bFALSE\b|\bEXCEPT\b|\bCORRECT\b|\bTRUE\b|\bMAIN\b|\bPRIMARY\b|\bNOT TRUE\b|नहीं\b|ग़लत\b|सत्य\b|असत्य\b|अतिरिक्त\b|किसे\b|किसने\b|कहाँ\b|कब\b|कौनसा\b|कौन-सा\b|कौनसी\b|कौन-सी\b|कौन\b|किस\b|कितने\b|कितनी\b|क्या\b|मुख्य\b|सर्वप्रथम\b|पहला\b|पहली\b|राजधानी\b|संस्थापक\b|मुख्यालय\b|फुल फॉर्म\b|अर्थ\b)/gi;
+
+  const parts = text.split(pattern);
+  return parts.map((part, idx) => {
+    if (!part) return null;
+
+    const lower = part.toLowerCase();
+    
+    // Check if part matches quote phrases like "..." or '...'
+    if (/^["'“‘].+["'”’]$/.test(part)) {
+      return (
+        <span 
+          key={idx} 
+          className="inline-block font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/40 mx-0.5"
+        >
+          {part}
+        </span>
+      );
+    }
+
+    // Negative / Exception keywords (NOT, नहीं, गलत, INCORRECT, EXCEPT) -> Highlight in vivid Rose/Red badge
+    if (
+      lower === 'not' || 
+      lower === 'incorrect' || 
+      lower === 'false' || 
+      lower === 'except' || 
+      lower === 'नहीं' || 
+      lower === 'ग़लत' || 
+      lower === 'असत्य'
+    ) {
+      return (
+        <span 
+          key={idx} 
+          className="inline-block font-black text-rose-800 dark:text-rose-200 bg-rose-150 bg-rose-200/90 dark:bg-rose-950/80 px-1.5 py-0.5 rounded-md border border-rose-300 dark:border-rose-700/60 mx-0.5 underline decoration-rose-500 decoration-2 shadow-2xs animate-pulse"
+        >
+          {part}
+        </span>
+      );
+    }
+
+    // Core Interrogatives & Directives (कहाँ, किसने, कौन, राजधानी, मुख्य, PRIMARY, MAIN, CORRECT) -> Highlight in vibrant Amber/Cyan
+    if (
+      lower === 'correct' || 
+      lower === 'true' || 
+      lower === 'main' || 
+      lower === 'primary' || 
+      lower === 'किसे' || 
+      lower === 'किसने' || 
+      lower === 'कहाँ' || 
+      lower === 'कब' || 
+      lower === 'कौनसा' || 
+      lower === 'कौन-सा' || 
+      lower === 'कौनसी' || 
+      lower === 'कौन-सी' || 
+      lower === 'कौन' || 
+      lower === 'किस' || 
+      lower === 'कितने' || 
+      lower === 'कितनी' || 
+      lower === 'क्या' || 
+      lower === 'मुख्य' || 
+      lower === 'सर्वप्रथम' || 
+      lower === 'पहला' || 
+      lower === 'पहली' || 
+      lower === 'राजधानी' || 
+      lower === 'संस्थापक' || 
+      lower === 'मुख्यालय' || 
+      lower === 'सत्य' ||
+      lower === 'अर्थ'
+    ) {
+      return (
+        <span 
+          key={idx} 
+          className="inline-block font-black text-amber-900 dark:text-amber-200 bg-amber-250 bg-amber-200/85 dark:bg-amber-500/25 px-1.5 py-0.5 rounded-md border border-amber-300 dark:border-amber-500/40 mx-0.5 shadow-2xs"
+        >
+          {part}
+        </span>
+      );
+    }
+
+    return <span key={idx}>{part}</span>;
+  });
 };
 
 const renderFormattedText = (text: string) => {
@@ -474,9 +591,12 @@ const Quiz: React.FC<QuizProps> = ({
     };
   }, [quiz, quizConfig, currentQuestionIndex, userAnswers, timer]);
 
-  // Touch Swipe Gesture State
+  // Touch Swipe Gesture & Slide Transition State
+  const [slideDirection, setSlideDirection] = useState<number>(1);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
+  const [touchEndY, setTouchEndY] = useState<number | null>(null);
 
   const progressPercent = currentQuiz.isInfinite 
     ? (userAnswers.length / (userAnswers.length + 1)) * 100 
@@ -595,6 +715,7 @@ const Quiz: React.FC<QuizProps> = ({
   };
 
   const handleNext = async () => {
+    setSlideDirection(1);
     if (currentQuestionIndex < quiz.questions.length - 1) {
       setSelectedOption(null);
       setShowFeedback(false);
@@ -617,6 +738,7 @@ const Quiz: React.FC<QuizProps> = ({
   };
 
   const handlePrevious = () => {
+    setSlideDirection(-1);
     if (currentQuestionIndex > 0) {
       setSelectedOption(null);
       setShowFeedback(false);
@@ -626,27 +748,38 @@ const Quiz: React.FC<QuizProps> = ({
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.targetTouches[0].clientX);
+    setTouchStartY(e.targetTouches[0].clientY);
     setTouchEndX(null);
+    setTouchEndY(null);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     setTouchEndX(e.targetTouches[0].clientX);
+    setTouchEndY(e.targetTouches[0].clientY);
   };
 
   const handleTouchEnd = () => {
     if (touchStartX === null || touchEndX === null) return;
-    const distance = touchStartX - touchEndX;
-    const minSwipeDistance = 50;
+    const diffX = touchStartX - touchEndX;
+    const diffY = (touchStartY !== null && touchEndY !== null) ? Math.abs(touchStartY - touchEndY) : 0;
+    const minSwipeDistance = 45;
 
-    if (distance > minSwipeDistance) {
-      handleNext();
-    } else if (distance < -minSwipeDistance) {
-      if (currentQuestionIndex > 0) {
-        handlePrevious();
+    // Only trigger horizontal slide if horizontal delta is larger than vertical movement
+    if (Math.abs(diffX) > minSwipeDistance && Math.abs(diffX) > diffY * 1.1) {
+      if (diffX > 0) {
+        // Swiped Left -> Move forward to next question (Slide Left)
+        handleNext();
+      } else if (diffX < 0) {
+        // Swiped Right -> Move back to previous question (Slide Right)
+        if (currentQuestionIndex > 0) {
+          handlePrevious();
+        }
       }
     }
     setTouchStartX(null);
+    setTouchStartY(null);
     setTouchEndX(null);
+    setTouchEndY(null);
   };
 
   const getQuestionStatus = (index: number) => {
@@ -895,6 +1028,7 @@ const Quiz: React.FC<QuizProps> = ({
                   key={i}
                   id={`circle-nav-${i}`}
                   onClick={() => {
+                    setSlideDirection(i >= currentQuestionIndex ? 1 : -1);
                     setSelectedOption(null);
                     setShowFeedback(false);
                     setCurrentQuestionIndex(i);
@@ -908,58 +1042,85 @@ const Quiz: React.FC<QuizProps> = ({
           </div>
         </div>
 
-        <div className="w-full max-w-2xl mx-auto px-4 sm:px-0 space-y-4">
-          {/* Question Text with distinct background area as requested */}
-          <div className="bg-blue-50/45 dark:bg-slate-900 border border-blue-100/50 dark:border-slate-850 px-4 sm:px-5 py-4 rounded-2xl shadow-3xs whitespace-pre-wrap break-words">
-            <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-relaxed">
-              {currentQuestion.question}
-            </h3>
-          </div>
+        <AnimatePresence mode="wait" custom={slideDirection}>
+          <motion.div
+            key={currentQuestionIndex}
+            custom={slideDirection}
+            variants={{
+              enter: (direction: number) => ({
+                x: direction > 0 ? 65 : -65,
+                opacity: 0,
+              }),
+              center: {
+                x: 0,
+                opacity: 1,
+              },
+              exit: (direction: number) => ({
+                x: direction > 0 ? -65 : 65,
+                opacity: 0,
+              }),
+            }}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{
+              x: { type: "spring", stiffness: 360, damping: 32 },
+              opacity: { duration: 0.18 },
+            }}
+            className="w-full max-w-2xl mx-auto px-4 sm:px-0 space-y-4"
+          >
+            {/* Question Text with distinct background area and smart highlight */}
+            <div className="bg-blue-50/45 dark:bg-slate-900 border border-blue-100/50 dark:border-slate-850 px-4 sm:px-5 py-4 rounded-2xl shadow-3xs whitespace-pre-wrap break-words">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-relaxed">
+                {highlightQuestionText(currentQuestion.question)}
+              </h3>
+            </div>
 
-          <div className="space-y-2.5">
-            {currentQuestion.options.map((option, idx) => {
-              const isSelected = selectedOption === idx;
-              const isCorrect = idx === currentQuestion.correctAnswerIndex;
-              let btnStyle = "bg-slate-50/50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-850";
-              
-              if (mode === 'PRACTICE' && showFeedback) {
-                // Practice mode instant feedback styling
-                if (isCorrect) btnStyle = "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-700 dark:text-emerald-400 shadow-2xs font-semibold";
-                else if (isSelected) btnStyle = "bg-rose-50 dark:bg-rose-900/20 border-rose-500 text-rose-700 dark:text-rose-400 shadow-2xs font-semibold";
-                else btnStyle = "opacity-40 grayscale-[0.5]";
-              } else if (isSelected) {
-                // Test mode / pre-feedback selected styling
-                btnStyle = "bg-blue-50 dark:bg-blue-900/30 border-blue-600 ring-2 ring-blue-500/20 text-blue-900 dark:text-blue-200 font-semibold shadow-2xs";
-              }
+            <div className="space-y-2.5">
+              {currentQuestion.options.map((option, idx) => {
+                const isSelected = selectedOption === idx;
+                const isCorrect = idx === currentQuestion.correctAnswerIndex;
+                let btnStyle = "bg-slate-50/50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-850";
+                
+                if (mode === 'PRACTICE' && showFeedback) {
+                  // Practice mode instant feedback styling
+                  if (isCorrect) btnStyle = "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-700 dark:text-emerald-400 shadow-2xs font-semibold";
+                  else if (isSelected) btnStyle = "bg-rose-50 dark:bg-rose-900/20 border-rose-500 text-rose-700 dark:text-rose-400 shadow-2xs font-semibold";
+                  else btnStyle = "opacity-40 grayscale-[0.5]";
+                } else if (isSelected) {
+                  // Test mode / pre-feedback selected styling
+                  btnStyle = "bg-blue-50 dark:bg-blue-900/30 border-blue-600 ring-2 ring-blue-500/20 text-blue-900 dark:text-blue-200 font-semibold shadow-2xs";
+                }
 
-              return (
-                <button 
-                  key={idx} 
-                  disabled={mode === 'PRACTICE' && showFeedback} 
-                  onClick={() => handleOptionClick(idx)} 
-                  className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all flex items-center group ${btnStyle}`}
-                >
-                  <div className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full border flex items-center justify-center mr-3 font-black text-xs transition-all shrink-0 aspect-square
-                    ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-850'}
-                  `}>
-                    {String.fromCharCode(65 + idx)}
-                  </div>
-                  <span className="font-semibold text-xs sm:text-sm leading-snug flex-1 text-slate-800 dark:text-slate-200">{option}</span>
-                  {mode === 'TEST' && isSelected && (
-                    <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider ml-2">Selected</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button 
+                    key={idx} 
+                    disabled={mode === 'PRACTICE' && showFeedback} 
+                    onClick={() => handleOptionClick(idx)} 
+                    className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all flex items-center group ${btnStyle}`}
+                  >
+                    <div className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full border flex items-center justify-center mr-3 font-black text-xs transition-all shrink-0 aspect-square
+                      ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-850'}
+                    `}>
+                      {String.fromCharCode(65 + idx)}
+                    </div>
+                    <span className="font-semibold text-xs sm:text-sm leading-snug flex-1 text-slate-800 dark:text-slate-200">{option}</span>
+                    {mode === 'TEST' && isSelected && (
+                      <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider ml-2">Selected</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-          {mode === 'PRACTICE' && showFeedback && (
-            <DecoratedExplanation 
-              explanation={currentQuestion.explanation} 
-              onAskAi={() => setShowAiModal(true)}
-            />
-          )}
-        </div>
+            {mode === 'PRACTICE' && showFeedback && (
+              <DecoratedExplanation 
+                explanation={currentQuestion.explanation} 
+                onAskAi={() => setShowAiModal(true)}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Navigation Palette Drawer */}
@@ -996,6 +1157,7 @@ const Quiz: React.FC<QuizProps> = ({
                       <button 
                         key={i}
                         onClick={() => { 
+                          setSlideDirection(i >= currentQuestionIndex ? 1 : -1);
                           setSelectedOption(null); 
                           setShowFeedback(false); 
                           setCurrentQuestionIndex(i); 

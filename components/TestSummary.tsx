@@ -35,6 +35,116 @@ interface TestSummaryProps {
   onExplain: (q: Question, userSelectedOpt: number | null) => void;
 }
 
+const highlightQuestionText = (text: string) => {
+  if (!text) return null;
+
+  if (text.includes('**') || text.includes('*')) {
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return (
+          <span 
+            key={idx} 
+            className="inline-block font-black text-amber-900 dark:text-amber-200 bg-amber-200/80 dark:bg-amber-500/25 px-1 py-0.5 rounded-md border border-amber-300 dark:border-amber-500/40 mx-0.5"
+          >
+            {part.slice(2, -2)}
+          </span>
+        );
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+        return (
+          <span 
+            key={idx} 
+            className="inline-block font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-100/80 dark:bg-indigo-950/50 px-1 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/40 mx-0.5"
+          >
+            {part.slice(1, -1)}
+          </span>
+        );
+      }
+      return <span key={idx}>{part}</span>;
+    });
+  }
+
+  const pattern = /(["'“‘][^"'“”]+?["'”’]|\bNOT\b|\bINCORRECT\b|\bFALSE\b|\bEXCEPT\b|\bCORRECT\b|\bTRUE\b|\bMAIN\b|\bPRIMARY\b|\bNOT TRUE\b|नहीं\b|ग़लत\b|सत्य\b|असत्य\b|अतिरिक्त\b|किसे\b|किसने\b|कहाँ\b|कब\b|कौनसा\b|कौन-सा\b|कौनसी\b|कौन-सी\b|कौन\b|किस\b|कितने\b|कितनी\b|क्या\b|मुख्य\b|सर्वप्रथम\b|पहला\b|पहली\b|राजधानी\b|संस्थापक\b|मुख्यालय\b|फुल फॉर्म\b|अर्थ\b)/gi;
+
+  const parts = text.split(pattern);
+  return parts.map((part, idx) => {
+    if (!part) return null;
+
+    const lower = part.toLowerCase();
+    
+    if (/^["'“‘].+["'”’]$/.test(part)) {
+      return (
+        <span 
+          key={idx} 
+          className="inline-block font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 px-1 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/40 mx-0.5"
+        >
+          {part}
+        </span>
+      );
+    }
+
+    if (
+      lower === 'not' || 
+      lower === 'incorrect' || 
+      lower === 'false' || 
+      lower === 'except' || 
+      lower === 'नहीं' || 
+      lower === 'ग़लत' || 
+      lower === 'असत्य'
+    ) {
+      return (
+        <span 
+          key={idx} 
+          className="inline-block font-black text-rose-800 dark:text-rose-200 bg-rose-200/90 dark:bg-rose-950/80 px-1 py-0.5 rounded-md border border-rose-300 dark:border-rose-700/60 mx-0.5 underline decoration-rose-500 decoration-2 shadow-2xs"
+        >
+          {part}
+        </span>
+      );
+    }
+
+    if (
+      lower === 'correct' || 
+      lower === 'true' || 
+      lower === 'main' || 
+      lower === 'primary' || 
+      lower === 'किसे' || 
+      lower === 'किसने' || 
+      lower === 'कहाँ' || 
+      lower === 'कब' || 
+      lower === 'कौनसा' || 
+      lower === 'कौन-सा' || 
+      lower === 'कौनसी' || 
+      lower === 'कौन-सी' || 
+      lower === 'कौन' || 
+      lower === 'किस' || 
+      lower === 'कितने' || 
+      lower === 'कितनी' || 
+      lower === 'क्या' || 
+      lower === 'मुख्य' || 
+      lower === 'सर्वप्रथम' || 
+      lower === 'पहला' || 
+      lower === 'पहली' || 
+      lower === 'राजधानी' || 
+      lower === 'संस्थापक' || 
+      lower === 'मुख्यालय' || 
+      lower === 'सत्य' ||
+      lower === 'अर्थ'
+    ) {
+      return (
+        <span 
+          key={idx} 
+          className="inline-block font-black text-amber-900 dark:text-amber-200 bg-amber-200/85 dark:bg-amber-500/25 px-1 py-0.5 rounded-md border border-amber-300 dark:border-amber-500/40 mx-0.5 shadow-2xs"
+        >
+          {part}
+        </span>
+      );
+    }
+
+    return <span key={idx}>{part}</span>;
+  });
+};
+
 export const TestSummary: React.FC<TestSummaryProps> = ({
   quiz,
   quizConfig,
@@ -431,7 +541,7 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
                           </span>
                         </div>
                         <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-relaxed">
-                          {q.question}
+                          {highlightQuestionText(q.question)}
                         </h4>
                       </div>
                     </div>

@@ -1,13 +1,15 @@
 import { Quiz, Question } from "../types";
 import { GoogleGenAI, Type } from "@google/genai";
 
-export const PRIMARY_MODEL = 'gemini-3.5-flash';
+export const PRIMARY_MODEL = 'gemini-2.5-flash';
 export const GEMINI_MODELS = [
-  'gemini-3.5-flash',
-  'gemini-3.6-flash',
-  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-2.5-pro',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash',
   'gemini-3.7-flash',
-  'gemini-3.1-pro-preview'
+  'gemini-3.5-flash'
 ];
 
 let userApiKeys: string[] = [];
@@ -104,26 +106,32 @@ export async function generateBatchQuestions(
   difficulty: 'easy' | 'medium' | 'hard' = 'medium'
 ): Promise<Question[]> {
   let backendError = '';
-  try {
-    const res = await fetch('/api/ai/generate-batch', {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ prompt, history, count, language, difficulty })
-    });
 
-    if (res.ok) {
-      const data = await res.json();
-      return data.questions || [];
-    } else {
-      try {
-        const errorData = await res.json();
-        if (errorData?.error) {
-          backendError = errorData.error;
-        }
-      } catch (_) {}
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch('/api/ai/generate-batch', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ prompt, history, count, language, difficulty })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data.questions || [];
+      } else {
+        try {
+          const errorData = await res.json();
+          if (errorData?.error) {
+            backendError = errorData.error;
+          }
+        } catch (_) {}
+      }
+    } catch (err: any) {
+      backendError = err?.message || String(err);
     }
-  } catch (err: any) {
-    backendError = err?.message || String(err);
+    if (attempt === 0) {
+      await new Promise(r => setTimeout(r, 800));
+    }
   }
 
   // Client-side fallback if backend fails or on Vercel
