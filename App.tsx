@@ -11,6 +11,8 @@ import AdminPanel from './components/AdminPanel';
 import Leaderboard from './components/Leaderboard';
 import { useAuth } from './hooks/useAuth';
 import { googleDriveService } from './services/googleDriveService';
+import { phoneStorageService } from './services/phoneStorageService';
+import { PhoneStorageModal } from './components/PhoneStorageModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, RefreshCcw, BookOpen, Trash2, Home, LayoutGrid, Bookmark, 
@@ -18,7 +20,7 @@ import {
   MessageSquare, ArrowRight, Sun, Moon, Maximize, Play, Settings, 
   ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
   ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe,
-  Cloud, HardDrive, CloudUpload, CloudDownload
+  Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 
@@ -30,6 +32,9 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
+  const [showPhoneStorageModal, setShowPhoneStorageModal] = useState(false);
+  const [showStoragePromptBanner, setShowStoragePromptBanner] = useState(false);
+  const [storagePermissionGranted, setStoragePermissionGranted] = useState(phoneStorageService.getPermissionStatus() === 'granted');
   
   const [library, setLibrary] = useState<StoredQuiz[]>([]);
   const [bookmarks, setBookmarks] = useState<BookmarkedQuestion[]>([]);
@@ -275,6 +280,55 @@ const App: React.FC = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
   }, []);
+
+  // Phone Storage Permission & Sync prompt
+  useEffect(() => {
+    const perm = phoneStorageService.getPermissionStatus();
+    if (perm === 'prompt') {
+      const timer = setTimeout(() => {
+        setShowStoragePromptBanner(true);
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleGrantPhoneStorage = async () => {
+    await phoneStorageService.requestPermission();
+    setStoragePermissionGranted(true);
+    setShowStoragePromptBanner(false);
+    setSuccessMessage("✓ Phone Storage Permission Granted! Tests are saved in device memory.");
+    setTimeout(() => setSuccessMessage(null), 4000);
+  };
+
+  const handleDismissStoragePrompt = () => {
+    phoneStorageService.denyPermission();
+    setShowStoragePromptBanner(false);
+  };
+
+  const handleDataImported = (data: { library?: StoredQuiz[]; bookmarks?: BookmarkedQuestion[]; categories?: Category[] }) => {
+    if (data.library && Array.isArray(data.library)) {
+      setLibrary(data.library);
+      localStorage.setItem('qf_lib_v4', JSON.stringify(data.library));
+      // Sync imported quizzes to MongoDB in background
+      data.library.forEach(q => {
+        fetch('/api/quizzes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(q)
+        }).catch(() => {});
+      });
+    }
+    if (data.bookmarks && Array.isArray(data.bookmarks)) {
+      setBookmarks(data.bookmarks);
+      localStorage.setItem('qf_bookmarks_v4', JSON.stringify(data.bookmarks));
+    }
+    if (data.categories && Array.isArray(data.categories)) {
+      setCategories(data.categories);
+      localStorage.setItem('qf_categories', JSON.stringify(data.categories));
+    }
+    setSuccessMessage("✓ Data successfully restored & synced to Phone Storage and Database!");
+    setTimeout(() => setSuccessMessage(null), 4000);
+  };
 
   const handleInstallApp = async () => {
     if (deferredPrompt) {
@@ -776,6 +830,10 @@ const App: React.FC = () => {
              ) : (
                <button onClick={login} className="px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-black text-[10px] uppercase tracking-wider hover:bg-blue-100 transition-all shrink-0">Login</button>
              )}
+             <button onClick={() => setShowPhoneStorageModal(true)} className={`p-1.5 sm:p-2 rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold ${isDarkMode ? 'bg-slate-800 text-blue-400 hover:bg-slate-700' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`} title="Phone Storage & Sync">
+               <Smartphone size={16} />
+               <span className="hidden md:inline">Storage</span>
+             </button>
              <button onClick={() => setShowJsonInfo(true)} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-600'}`} title="JSON Template"><Brackets size={16} /></button>
              <button onClick={toggleFullscreen} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-50 text-slate-600'}`} title="Full Screen"><Maximize2 size={16} /></button>
              <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-1.5 sm:p-2 rounded-lg transition-all ${isDarkMode ? 'bg-slate-800 text-yellow-400' : 'bg-slate-100 text-slate-600'}`}>{isDarkMode ? <Sun size={16} /> : <Moon size={16} />}</button>
@@ -815,6 +873,9 @@ const App: React.FC = () => {
                 </button>
                 <button onClick={() => { navigateTo('LEADERBOARD'); setShowTopMenu(false); }} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${tab === 'LEADERBOARD' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   <Trophy size={18} /> Rank
+                </button>
+                <button onClick={() => { setShowPhoneStorageModal(true); setShowTopMenu(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+                  <Smartphone size={18} className="text-blue-500" /> Phone Storage
                 </button>
                 <button onClick={() => { navigateTo('SETTINGS'); setShowTopMenu(false); }} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${tab === 'SETTINGS' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   <Settings size={18} /> Settings
@@ -1071,6 +1132,39 @@ const App: React.FC = () => {
                 </div>
 
 
+
+                {/* Phone Storage Permission Request Banner */}
+                {showStoragePromptBanner && !storagePermissionGranted && (
+                  <div className="p-5 rounded-[2.5rem] bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white shadow-xl shadow-blue-500/20 animate-in fade-in slide-in-from-top-4 duration-500 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                        <Smartphone size={24} className="text-white" />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black uppercase tracking-widest bg-white/20 px-2.5 py-0.5 rounded-full">Device Permission</span>
+                        <h4 className="font-black text-sm sm:text-base tracking-tight mt-1">Phone Storage & Offline Cache</h4>
+                        <p className="text-[11px] text-blue-100 font-medium leading-tight mt-0.5">
+                          Quizzes aur test data ko aapke phone storage me save karne ki permission chahiye taki bina internet bhi sab chalta rahe.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                      <button 
+                        onClick={handleGrantPhoneStorage}
+                        className="flex-1 sm:flex-none px-5 py-3 bg-white text-blue-700 hover:bg-blue-50 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+                      >
+                        <ShieldCheck size={14} /> Allow Permission
+                      </button>
+                      <button 
+                        onClick={handleDismissStoragePrompt}
+                        className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all"
+                        title="Dismiss"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Paused Session Resume Banner */}
                 {pausedSession && (
@@ -1992,6 +2086,41 @@ const App: React.FC = () => {
                      </div>
                   </div>
 
+                  {/* DUAL PERSISTENCE: PHONE STORAGE & MONGODB SYNC CARD */}
+                  <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                     <div className="p-6 rounded-[2.5rem] bg-gradient-to-br from-indigo-600/10 via-purple-600/5 to-blue-600/10 border border-indigo-500/30">
+                        <div className="flex items-center justify-between mb-4">
+                           <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                                 <Smartphone size={24} />
+                              </div>
+                              <div>
+                                 <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                    Phone Storage & MongoDB Dual-Sync
+                                 </h4>
+                                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                                    {storagePermissionGranted ? '🟢 Phone Storage Active' : '⚪ Permission Pending'}
+                                 </p>
+                              </div>
+                           </div>
+                           <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-600 text-[9px] font-black uppercase tracking-widest border border-indigo-500/20">
+                              Offline First
+                           </span>
+                        </div>
+
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
+                           Aapka data dono jagah safe rehta hai: <b>Phone Storage</b> (instant offline tests) aur <b>MongoDB Cloud Database</b> (safe cloud backup). Phone storage permission allow karne par device memory me high-speed caching activate ho jaati hai.
+                        </p>
+
+                        <button 
+                           onClick={() => setShowPhoneStorageModal(true)}
+                           className="w-full py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/25 hover:from-indigo-700 hover:to-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95"
+                        >
+                           <Database size={16} /> Open Phone Storage & Sync Manager
+                        </button>
+                     </div>
+                  </div>
+
                   <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
                      <div className="flex items-start gap-4 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40">
                         <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
@@ -2090,6 +2219,28 @@ const App: React.FC = () => {
               </div>
            </div>
         </div>
+      )}
+
+      {/* PHONE STORAGE & PERSISTENCE MODAL */}
+      {showPhoneStorageModal && (
+        <PhoneStorageModal
+          isOpen={showPhoneStorageModal}
+          onClose={() => setShowPhoneStorageModal(false)}
+          onPermissionChanged={(granted) => {
+            setStoragePermissionGranted(granted);
+            if (granted) {
+              setSuccessMessage("✓ Phone Storage Permission Active! Quizzes will load instantly offline.");
+              setTimeout(() => setSuccessMessage(null), 4000);
+            }
+          }}
+          onDataImported={handleDataImported}
+          onForceSync={async () => {
+            await fetchQuizzes();
+            await fetchCategories();
+            setSuccessMessage("✓ Dual-Sync completed with MongoDB & Local Storage!");
+            setTimeout(() => setSuccessMessage(null), 4000);
+          }}
+        />
       )}
 
       {appState === 'IDLE' && (
