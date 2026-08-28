@@ -320,7 +320,7 @@ const App: React.FC = () => {
     setShowStoragePromptBanner(false);
   };
 
-  const handleDataImported = (data: { library?: StoredQuiz[]; bookmarks?: BookmarkedQuestion[]; categories?: Category[] }) => {
+  const handleDataImported = (data: { library?: StoredQuiz[]; bookmarks?: BookmarkedQuestion[]; categories?: Category[]; pausedSession?: SavedQuizSession; savedSessions?: Record<string, SavedQuizSession> }) => {
     if (data.library && Array.isArray(data.library)) {
       setLibrary(data.library);
       localStorage.setItem('qf_lib_v4', JSON.stringify(data.library));
@@ -341,7 +341,13 @@ const App: React.FC = () => {
       setCategories(data.categories);
       localStorage.setItem('qf_categories', JSON.stringify(data.categories));
     }
-    setSuccessMessage("✓ Data successfully restored & synced to Phone Storage and Database!");
+    if (data.pausedSession) {
+      setPausedSession(data.pausedSession);
+    } else {
+      const act = quizSessionService.getActiveSession();
+      if (act) setPausedSession(act);
+    }
+    setSuccessMessage("✓ All Saved Tests, Bookmarks, and Paused Progress restored successfully!");
     setTimeout(() => setSuccessMessage(null), 4000);
   };
 

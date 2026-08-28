@@ -70,37 +70,34 @@ function saveLocalData() {
 let client: MongoClient | null = null;
 let db: any = null;
 let mongoAttemptDone = false;
-let mongoConnectionError: string | null = null;
 
 async function connectToMongoDB() {
-  if (!MONGODB_URI) return null;
+  if (!MONGODB_URI || (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://'))) {
+    return null;
+  }
   if (mongoAttemptDone && !db) return null;
   if (db) return db;
 
   try {
     const newClient = new MongoClient(MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 3000,
     });
     await newClient.connect();
     client = newClient;
     db = client.db('quizflash');
-    console.log('Connected to MongoDB Atlas (quizflash)');
+    console.log('[Storage] Connected to MongoDB Atlas cluster.');
     return db;
   } catch (err: any) {
     mongoAttemptDone = true;
-    mongoConnectionError = err?.message || String(err);
     if (client) {
       try {
         await client.close();
       } catch (_) {}
       client = null;
     }
-    console.info(
-      'MongoDB Atlas notice: Authentication or connection failed (' +
-        (err?.message || 'unknown error') +
-        '). Operating smoothly on resilient local file persistence.'
-    );
+    db = null;
+    console.log('[Storage] MongoDB cloud disabled or offline. Operating smoothly on resilient local file persistence.');
     return null;
   }
 }
@@ -110,8 +107,7 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: 'ok',
     storageMode: db ? 'mongodb' : 'local_file_cache',
-    dbConnected: !!db,
-    mongoNotice: !db && mongoConnectionError ? mongoConnectionError : undefined
+    dbConnected: !!db
   });
 });
 

@@ -107,62 +107,73 @@ export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
   const isGranted = storageInfo?.permissionStatus === 'granted';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-[300] flex flex-col justify-start sm:justify-center items-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div 
-        className={`w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl border transition-all ${
+        className={`w-full max-w-lg my-2 sm:my-auto max-h-[92vh] sm:max-h-[85vh] rounded-3xl shadow-2xl border transition-all flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ${
           isDarkMode 
             ? 'bg-slate-900 border-slate-800 text-white' 
             : 'bg-white border-slate-100 text-slate-900'
         }`}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-600/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 flex items-center justify-center">
-              <Smartphone size={24} />
+        {/* Sticky Header with prominent close button */}
+        <div className="shrink-0 p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm z-10">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-blue-600/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Smartphone size={20} className="sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
-                Phone & Device Storage
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-sm sm:text-base font-black tracking-tight truncate">
+                  Phone Storage & Sync
+                </h2>
                 {isGranted && (
-                  <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <span className="text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
                     Active
                   </span>
                 )}
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Dual Persistence: Phone Offline Storage + MongoDB Cloud
+              </div>
+              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
+                Offline Local Storage + MongoDB Cloud
               </p>
             </div>
           </div>
+          
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            aria-label="Close modal"
+            className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 font-bold text-xs flex items-center gap-1.5 transition-all shrink-0 active:scale-95 shadow-sm border border-red-200/60 dark:border-red-900/60"
+            title="Close modal"
           >
-            <X size={20} />
+            <X size={16} className="stroke-[2.5]" />
+            <span>Close</span>
           </button>
         </div>
 
-        {/* Status Notification Message */}
-        {msg && (
-          <div className={`mt-4 p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2.5 ${
-            msg.type === 'success' 
-              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' 
-              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-          }`}>
-            {msg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-            <span>{msg.text}</span>
-          </div>
-        )}
+        {/* Scrollable Content Body with custom scrollbar */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 [scrollbar-width:thin] [scrollbar-color:rgba(156,163,175,0.5)_transparent]">
+          {/* Status Notification Message */}
+          {msg && (
+            <div className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2.5 ${
+              msg.type === 'success' 
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' 
+                : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+            }`}>
+              {msg.type === 'success' ? <CheckCircle2 size={16} className="shrink-0" /> : <AlertCircle size={16} className="shrink-0" />}
+              <span className="leading-snug">{msg.text}</span>
+            </div>
+          )}
 
-        {/* Content Body */}
-        <div className="mt-5 space-y-4">
           {/* Dual Storage Feature explanation */}
           <div className={`p-4 rounded-2xl border text-xs leading-relaxed space-y-2 ${
             isDarkMode ? 'bg-slate-800/60 border-slate-700/60' : 'bg-slate-50 border-slate-200/70'
           }`}>
             <div className="flex items-center gap-2 font-bold text-blue-600 dark:text-blue-400 text-xs">
-              <ShieldCheck size={16} />
+              <ShieldCheck size={16} className="shrink-0" />
               <span>How your data is stored (डेटा कैसे सुरक्षित रहता है):</span>
             </div>
             <ul className="space-y-1.5 text-slate-600 dark:text-slate-300 pl-5 list-disc text-[11px]">
@@ -178,24 +189,24 @@ export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
           {/* Storage Quota & Statistics */}
           <div className="grid grid-cols-3 gap-2.5 pt-1">
             <div className={`p-3 rounded-2xl border text-center ${isDarkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200/60'}`}>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Local Quizzes</div>
-              <div className="text-lg font-black text-blue-600 dark:text-blue-400 mt-0.5">
+              <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Local Quizzes</div>
+              <div className="text-base sm:text-lg font-black text-blue-600 dark:text-blue-400 mt-0.5">
                 {library.length}
               </div>
               <div className="text-[9px] text-slate-400">On Phone</div>
             </div>
 
             <div className={`p-3 rounded-2xl border text-center ${isDarkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200/60'}`}>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Bookmarks</div>
-              <div className="text-lg font-black text-amber-500 mt-0.5">
+              <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Bookmarks</div>
+              <div className="text-base sm:text-lg font-black text-amber-500 mt-0.5">
                 {bookmarks.length}
               </div>
               <div className="text-[9px] text-slate-400">Questions</div>
             </div>
 
             <div className={`p-3 rounded-2xl border text-center ${isDarkMode ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200/60'}`}>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phone Usage</div>
-              <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+              <div className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Phone Usage</div>
+              <div className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">
                 {storageInfo?.usedKB ? `${storageInfo.usedKB} KB` : 'Active'}
               </div>
               <div className="text-[9px] text-slate-400">Durable Cache</div>
@@ -217,21 +228,21 @@ export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2 pt-1 flex-wrap sm:flex-nowrap">
                 <button
                   onClick={handleGrantPermission}
                   disabled={isSyncing}
-                  className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-600/20 transition flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-600/20 transition flex items-center justify-center gap-2 active:scale-95"
                 >
                   <ShieldCheck size={14} />
-                  <span>Grant Phone Storage Permission</span>
+                  <span>Grant Permission</span>
                 </button>
                 <button
                   onClick={() => {
                     phoneStorageService.denyPermission();
                     onClose();
                   }}
-                  className="py-2.5 px-4 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  className="py-2.5 px-4 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95"
                 >
                   Not Now
                 </button>
@@ -240,7 +251,7 @@ export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
           )}
 
           {/* Backup & Restore to Phone Storage Tools */}
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2 pt-1">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
               Phone Storage Tools (Backup / Restore)
             </label>
@@ -248,32 +259,32 @@ export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 onClick={handleExportBackup}
-                className={`p-3 rounded-2xl border text-left transition flex items-center gap-3 ${
+                className={`p-3 rounded-2xl border text-left transition flex items-center gap-3 active:scale-98 ${
                   isDarkMode 
                     ? 'bg-slate-800/80 border-slate-700 hover:border-blue-500/50' 
                     : 'bg-slate-50 border-slate-200 hover:border-blue-400'
                 }`}
               >
-                <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shrink-0">
                   <Download size={16} />
                 </div>
-                <div>
-                  <div className="text-xs font-bold">Export Backup (.json)</div>
-                  <div className="text-[10px] text-slate-400">Download to Phone Storage</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold truncate">Export Backup (.json)</div>
+                  <div className="text-[10px] text-slate-400 truncate">Download to Phone Storage</div>
                 </div>
               </button>
 
-              <label className={`p-3 rounded-2xl border text-left transition flex items-center gap-3 cursor-pointer ${
+              <label className={`p-3 rounded-2xl border text-left transition flex items-center gap-3 cursor-pointer active:scale-98 ${
                 isDarkMode 
                   ? 'bg-slate-800/80 border-slate-700 hover:border-emerald-500/50' 
                   : 'bg-slate-50 border-slate-200 hover:border-emerald-400'
               }`}>
-                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 shrink-0">
                   <Upload size={16} />
                 </div>
-                <div>
-                  <div className="text-xs font-bold">Import from Phone</div>
-                  <div className="text-[10px] text-slate-400">Restore from .json file</div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold truncate">Import from Phone</div>
+                  <div className="text-[10px] text-slate-400 truncate">Restore from .json file</div>
                 </div>
                 <input 
                   type="file" 
@@ -288,14 +299,14 @@ export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
               <button
                 onClick={handleManualSync}
                 disabled={isSyncing}
-                className={`w-full p-3 rounded-2xl border text-center transition flex items-center justify-center gap-2 mt-2 ${
+                className={`w-full p-3 rounded-2xl border text-center transition flex items-center justify-center gap-2 mt-2 active:scale-98 ${
                   isDarkMode 
                     ? 'bg-slate-800/50 border-slate-700 hover:bg-slate-800 text-slate-300' 
                     : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
                 }`}
               >
                 <RefreshCw size={14} className={isSyncing ? 'animate-spin text-blue-600' : ''} />
-                <span className="text-xs font-bold">
+                <span className="text-xs font-bold truncate">
                   {isSyncing ? 'Syncing with MongoDB & Storage...' : 'Sync Phone Storage with MongoDB Cloud'}
                 </span>
               </button>
@@ -303,13 +314,14 @@ export const PhoneStorageModal: React.FC<PhoneStorageModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+        {/* Sticky Footer */}
+        <div className="shrink-0 p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end bg-slate-50/50 dark:bg-slate-900/50">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-xs font-bold transition"
+            className="w-full sm:w-auto px-6 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-2"
           >
-            Close
+            <X size={15} />
+            <span>Close Modal</span>
           </button>
         </div>
       </div>

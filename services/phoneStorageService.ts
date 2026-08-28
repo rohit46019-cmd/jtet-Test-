@@ -153,14 +153,35 @@ export const phoneStorageService = {
   },
 
   // Export full backup directly to user's phone/PC storage as a downloadable .json file
-  exportBackupFile(data: { library: any[]; bookmarks: any[]; categories: any[]; quizConfig?: any }): boolean {
+  exportBackupFile(data: { library: any[]; bookmarks: any[]; categories: any[]; quizConfig?: any; savedSessions?: any; pausedSession?: any }): boolean {
     try {
+      // Auto-extract paused/saved test sessions if not explicitly provided
+      let savedSessions = data.savedSessions;
+      let pausedSession = data.pausedSession;
+
+      if (!savedSessions) {
+        try {
+          const mapRaw = localStorage.getItem('qf_saved_quiz_sessions_map_v1');
+          if (mapRaw) savedSessions = JSON.parse(mapRaw);
+        } catch (_) {}
+      }
+
+      if (!pausedSession) {
+        try {
+          const activeRaw = localStorage.getItem('qf_paused_session_v1');
+          if (activeRaw) pausedSession = JSON.parse(activeRaw);
+        } catch (_) {}
+      }
+
       const backupObj = {
         app: 'QuizFlash',
-        version: '4.0',
+        version: '4.1',
+        description: 'Complete Quiz Flash backup containing all Saved Tests, Bookmarks, Categories, and Paused Test Progress',
         exportedAt: new Date().toISOString(),
         timestamp: Date.now(),
-        ...data
+        ...data,
+        savedSessions: savedSessions || {},
+        pausedSession: pausedSession || null
       };
       const jsonStr = JSON.stringify(backupObj, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -193,6 +214,19 @@ export const phoneStorageService = {
               resolve({ success: false, error: 'Invalid Quiz Flash backup format.' });
               return;
             }
+
+            // Restore saved sessions / paused test attempts if present in backup
+            if (parsed.savedSessions && typeof parsed.savedSessions === 'object') {
+              try {
+                localStorage.setItem('qf_saved_quiz_sessions_map_v1', JSON.stringify(parsed.savedSessions));
+              } catch (_) {}
+            }
+            if (parsed.pausedSession) {
+              try {
+                localStorage.setItem('qf_paused_session_v1', JSON.stringify(parsed.pausedSession));
+              } catch (_) {}
+            }
+
             resolve({ success: true, data: parsed });
           } catch (err: any) {
             resolve({ success: false, error: 'Failed to parse JSON file: ' + err.message });
