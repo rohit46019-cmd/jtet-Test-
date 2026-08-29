@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig, Question } from '../types';
+import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig, Question, formatDuration } from '../types';
 import { quizSessionService } from '../services/quizSessionService';
 import { phoneStorageService } from '../services/phoneStorageService';
 import { auditAndFixQuizQuestions } from '../services/geminiService';
@@ -857,9 +857,7 @@ const Quiz: React.FC<QuizProps> = ({
   };
 
   const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+    return formatDuration(secs);
   };
 
   return (

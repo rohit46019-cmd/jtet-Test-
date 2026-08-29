@@ -4,7 +4,7 @@ import {
   RotateCcw, Home, Bookmark, Award, Zap, BarChart3, ChevronDown, 
   ChevronUp, Check, X, ArrowRight, Target, HelpCircle, ShieldAlert
 } from 'lucide-react';
-import { Quiz, UserAnswer, Question, QuizConfig } from '../types';
+import { Quiz, UserAnswer, Question, QuizConfig, formatDuration } from '../types';
 
 interface TestSummaryProps {
   quiz: Quiz;
@@ -166,10 +166,7 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
   };
 
   const formattedTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    if (m === 0) return `${s}s`;
-    return `${m}m ${s}s`;
+    return formatDuration(seconds);
   };
 
   const avgTimePerQuestion = score.attempted > 0 

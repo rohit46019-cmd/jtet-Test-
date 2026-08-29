@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { extractTextFromPDF } from './services/pdfService';
 import { generateQuizFromText, generateQuizFromPrompt, generateSingleQuestion, generateBatchQuestions, setUserApiKeys, verifyGeminiApiKey, KeyVerificationResult } from './services/geminiService';
-import { AppState, TabState, Quiz as QuizType, UserAnswer, StoredQuiz, BookmarkedQuestion, Category, QuizConfig, SavedQuizSession } from './types';
+import { AppState, TabState, Quiz as QuizType, UserAnswer, StoredQuiz, BookmarkedQuestion, Category, QuizConfig, SavedQuizSession, formatDuration } from './types';
 import FileUpload from './components/FileUpload';
 import Quiz from './components/Quiz';
 import { QuizConfigModal } from './components/QuizConfigModal';
@@ -1055,7 +1055,8 @@ const App: React.FC = () => {
     if (!quiz || !quiz.isInfinite || !quiz.originalPrompt) return;
     try {
       const history = quiz.questions.map(q => q.question);
-      const newQuestions = await generateBatchQuestions(quiz.originalPrompt, history, 6, quiz.language || 'English');
+      const diff = quiz.difficulty || quizDifficulty || 'medium';
+      const newQuestions = await generateBatchQuestions(quiz.originalPrompt, history, 6, quiz.language || 'English', diff);
       if (newQuestions && newQuestions.length > 0) {
         setQuiz(prev => {
           if (!prev) return null;
@@ -1664,7 +1665,7 @@ const App: React.FC = () => {
                       <div>
                         <span className="text-[7.5px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">Paused Test Session</span>
                         <h4 className="font-black text-xs tracking-tight mt-0.5 truncate max-w-xs">{pausedSession.quiz.title}</h4>
-                        <p className="text-[9px] text-amber-100 font-medium">Question {pausedSession.currentQuestionIndex + 1} of {pausedSession.quiz.questions.length} • Elapsed: {Math.floor(pausedSession.timer / 60).toString().padStart(2, '0')}:{(pausedSession.timer % 60).toString().padStart(2, '0')}</p>
+                        <p className="text-[9px] text-amber-100 font-medium">Question {pausedSession.currentQuestionIndex + 1} of {pausedSession.quiz.questions.length} • Elapsed: {formatDuration(pausedSession.timer)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto">

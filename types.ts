@@ -18,6 +18,22 @@ export interface Quiz {
   isInfinite?: boolean;
   originalPrompt?: string;
   language?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
+
+export function formatDuration(totalSeconds?: number): string {
+  if (!totalSeconds || isNaN(totalSeconds) || totalSeconds <= 0) return '0s';
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+
+  if (h > 0) {
+    return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+  }
+  if (m > 0) {
+    return `${m}m ${s.toString().padStart(2, '0')}s`;
+  }
+  return `${s}s`;
 }
 
 export interface Category {

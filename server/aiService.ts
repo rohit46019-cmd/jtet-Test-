@@ -134,7 +134,7 @@ async function generateWithFallback(
     } catch (err: any) {
       lastErr = err;
       const errMsg = String(err?.message || err);
-      console.log(`[AI Backend] Model ${model} failed (${errMsg}). Trying fallback model...`);
+      // Suppressed noisy fallback logs
       if (
         errMsg.includes('not found') ||
         errMsg.includes('no longer available') ||
@@ -190,14 +190,13 @@ async function executeWithRetry<T>(
         if (code === 429 || code === 503) {
           if (attempt < MAX_RETRIES_PER_KEY - 1) {
             const delay = Math.pow(2, attempt) * 600 + Math.random() * 400;
-            console.log(`[AI Backend] Gemini API warning (${code}: ${message}). Retrying attempt ${attempt + 1}/${MAX_RETRIES_PER_KEY} in ${Math.round(delay)}ms...`);
+            // Suppress noisy retry logs
             await sleep(delay);
             continue;
           }
         }
 
         // On 403 or exhausted retries, try next key
-        console.log(`[AI Backend] Key failed with ${code}: ${message}. Trying fallback key if available...`);
         break;
       }
     }
@@ -217,7 +216,7 @@ function getOfflineFallbackQuestions(prompt: string, count: number = 6): Questio
         `Subjective intuition and unverified estimation`
       ],
       correct: 0,
-      exp: `Systematic analysis and standardized empirical validation form the bedrock methodology for studying ${prompt}.`
+      exp: `**Core Concept:** Systematic analysis and standardized empirical validation form the bedrock methodology for studying ${prompt}.\n\n**Why Correct:**\n• Option A is correct because rigorous empirical validation ensures factual accuracy.\n\n**Key Takeaways:**\n• Always prioritize empirical data over subjective intuition.`
     },
     {
       q: `Which of the following best describes the historical or practical significance of ${prompt}?`,
@@ -228,7 +227,7 @@ function getOfflineFallbackQuestions(prompt: string, count: number = 6): Questio
         `It contradicts all established empirical principles`
       ],
       correct: 1,
-      exp: `In the context of ${prompt}, historical milestones establish the conceptual frameworks utilized in contemporary applications.`
+      exp: `**Core Concept:** Historical milestones establish the conceptual frameworks utilized in contemporary applications of ${prompt}.\n\n**Why Correct:**\n• Option B accurately highlights its foundational role in modern standards.\n\n**Key Takeaways:**\n• Foundation milestones shape current practices.`
     },
     {
       q: `When analyzing advanced applications related to ${prompt}, which factor is most critical?`,
@@ -239,7 +238,7 @@ function getOfflineFallbackQuestions(prompt: string, count: number = 6): Questio
         `Minimizing documentation and review`
       ],
       correct: 1,
-      exp: `Optimizing structural efficiency and accuracy ensures reliable outcomes when working with ${prompt}.`
+      exp: `**Core Concept:** Optimizing structural efficiency and accuracy ensures reliable outcomes when working with ${prompt}.\n\n**Why Correct:**\n• Option B focuses on precision and optimization, which are vital.\n\n**Key Takeaways:**\n• Efficiency and precision are non-negotiable.`
     },
     {
       q: `What is a primary challenge frequently encountered in ${prompt}?`,
@@ -250,7 +249,7 @@ function getOfflineFallbackQuestions(prompt: string, count: number = 6): Questio
         `Zero operational constraints`
       ],
       correct: 1,
-      exp: `Managing complexity and maintaining precision is the primary challenge addressed by experts in ${prompt}.`
+      exp: `**Core Concept:** Managing complexity and maintaining precision is the primary challenge addressed by experts in ${prompt}.\n\n**Why Correct:**\n• Option B addresses real-world operational challenges.\n\n**Key Takeaways:**\n• Complexity management requires structured frameworks.`
     },
     {
       q: `Which methodology is widely recommended for evaluating progress in ${prompt}?`,
@@ -261,7 +260,7 @@ function getOfflineFallbackQuestions(prompt: string, count: number = 6): Questio
         `Relying solely on anecdotal impressions`
       ],
       correct: 0,
-      exp: `Multi-tier assessment and milestone tracking provide objective metrics for evaluating progress in ${prompt}.`
+      exp: `**Core Concept:** Multi-tier assessment and milestone tracking provide objective metrics for evaluating progress in ${prompt}.\n\n**Why Correct:**\n• Option A provides objective, structured measurement.\n\n**Key Takeaways:**\n• Use multi-tier assessments for reliable tracking.`
     },
     {
       q: `What is the primary objective of studying or implementing ${prompt}?`,
@@ -501,9 +500,14 @@ export async function generateServerBatchQuestions(
   customKeys?: string[]
 ): Promise<QuestionData[]> {
   const difficultyPrompt =
-    difficulty === 'easy' ? 'DIFFICULTY: Easy (Focus on basic recall, definitions, and direct facts).' :
-    difficulty === 'hard' ? 'DIFFICULTY: Hard (Focus on deep analysis, critical thinking, complex application, and reasoning).' :
-    'DIFFICULTY: Medium (Focus on comprehension, core concepts, and logical connections).';
+    difficulty === 'easy' ? 'DIFFICULTY: EASY (Beginner level. Focus strictly on core definitions, direct facts, basic terminology, simple recall, and unambiguous options. Avoid any complex multi-step reasoning or tricky distractors).' :
+    difficulty === 'hard' ? 'DIFFICULTY: HARD (Advanced expert level / UPSC / GATE / JEE advanced level. Focus on deep critical analysis, complex edge-cases, multi-step logical deduction, deep conceptual synthesis, and advanced problem-solving scenarios).' :
+    'DIFFICULTY: MEDIUM (Standard competitive exam level. Focus on standard conceptual comprehension, application of rules, comparative analysis, and moderate problem-solving).';
+
+  const historyList = history && history.length > 0 ? history.slice(-150) : [];
+  const historyPrompt = historyList.length > 0
+    ? `CRITICAL UNIQUE RULE: You MUST NOT repeat any of the following previously asked questions or concepts. Generate 100% brand new, unique, and distinct questions not found in this history:\n${historyList.map(h => `- ${h}`).join('\n')}`
+    : '';
 
   try {
     const data = await executeWithRetry(async (ai) => {
@@ -512,7 +516,7 @@ export async function generateServerBatchQuestions(
         contents: `Generate exactly ${count} unique, diverse multiple choice questions about: "${prompt}". 
       LANGUAGE: Use ${language} for everything (questions, options, and explanations).
       ${difficultyPrompt}
-      DO NOT repeat topics covered in these existing questions: [${history.slice(-35).join(', ')}].
+      ${historyPrompt}
       
       IMPORTANT EXPLANATION & CORRECTION INSTRUCTIONS:
       Do NOT write long story-like or essay paragraphs.
@@ -621,10 +625,11 @@ export async function generateServerQuizFromText(
   const batchPromises = chunks.map(async (textChunk, i) => {
     const questionsToGenerate = (i === numBatches - 1) ? (totalCount % batchSize || batchSize) : batchSize;
 
-    const data = await executeWithRetry(async (ai) => {
-      const response = await generateWithFallback(ai, {
-        model: PRIMARY_MODEL,
-        contents: `Extract exactly ${questionsToGenerate} diverse MCQs from this document segment. 
+    try {
+      const data = await executeWithRetry(async (ai) => {
+        const response = await generateWithFallback(ai, {
+          model: PRIMARY_MODEL,
+          contents: `Extract exactly ${questionsToGenerate} diverse MCQs from this document segment. 
         LANGUAGE: Use ${language} for everything (questions, options, and explanations).
         ${difficultyPrompt}
         
@@ -646,41 +651,45 @@ export async function generateServerQuizFromText(
         
         SEGMENT:
         ${textChunk}`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              questions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    id: { type: Type.STRING },
-                    question: { type: Type.STRING },
-                    options: {
-                      type: Type.ARRAY,
-                      items: { type: Type.STRING },
-                      minItems: 4,
-                      maxItems: 4
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                questions: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      id: { type: Type.STRING },
+                      question: { type: Type.STRING },
+                      options: {
+                        type: Type.ARRAY,
+                        items: { type: Type.STRING },
+                        minItems: 4,
+                        maxItems: 4
+                      },
+                      correctAnswerIndex: { type: Type.INTEGER },
+                      explanation: { type: Type.STRING }
                     },
-                    correctAnswerIndex: { type: Type.INTEGER },
-                    explanation: { type: Type.STRING }
-                  },
-                  required: ['id', 'question', 'options', 'correctAnswerIndex', 'explanation']
+                    required: ['id', 'question', 'options', 'correctAnswerIndex', 'explanation']
+                  }
                 }
-              }
-            },
-            required: ['questions']
+              },
+              required: ['questions']
+            }
           }
-        }
-      });
-      return JSON.parse(response.text || '{}');
-    }, customKeys);
+        });
+        return JSON.parse(response.text || '{}');
+      }, customKeys);
 
-    if (data.title && i === 0) quizTitle = data.title;
-    return data.questions || [];
+      if (data.title && i === 0) quizTitle = data.title;
+      return data.questions || [];
+    } catch (err) {
+      console.warn('[AI Backend] Text chunk generation failed. Using offline fallback.');
+      return getOfflineFallbackQuestions('Document segment', questionsToGenerate);
+    }
   });
 
   const results = await Promise.all(batchPromises);
@@ -723,6 +732,7 @@ export async function generateServerQuizFromPrompt(
     createdAt: Date.now(),
     isInfinite: true,
     originalPrompt: prompt,
-    language
+    language,
+    difficulty
   };
 }

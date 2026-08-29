@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Medal, Award, User, Target, Sparkles, CheckCircle2, RefreshCw, Clock } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { formatDuration } from '../types';
 
 export default function Leaderboard() {
   const [users, setUsers] = useState<any[]>(() => {
@@ -57,12 +58,8 @@ export default function Leaderboard() {
   const userRankIndex = users.findIndex(u => u.id === currentUser?.uid || u.email === currentUser?.email);
   const currentUserData = userRankIndex !== -1 ? users[userRankIndex] : null;
 
-  const formatDuration = (seconds?: number) => {
-    if (!seconds || seconds <= 0) return '0s';
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    if (m === 0) return `${s}s`;
-    return `${m}m ${s}s`;
+  const formatDurationLocal = (seconds?: number) => {
+    return formatDuration(seconds);
   };
 
   return (
