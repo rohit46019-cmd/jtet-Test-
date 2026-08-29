@@ -4,10 +4,92 @@ import { GoogleGenAI, Type } from "@google/genai";
 export const PRIMARY_MODEL = 'gemini-3.7-flash';
 export const GEMINI_MODELS = [
   'gemini-3.7-flash',
+  'gemini-3.6-flash',
   'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
   'gemini-flash-latest',
-  'gemini-3.1-flash-lite'
+  'gemini-3.1-pro-preview'
 ];
+
+export interface KeyVerificationResult {
+  success: boolean;
+  model?: string;
+  keyPreview?: string;
+  latencyMs?: number;
+  message: string;
+  error?: string;
+}
+
+/**
+ * Tests and verifies a Gemini API key with Google AI API
+ */
+export async function verifyGeminiApiKey(apiKey: string): Promise<KeyVerificationResult> {
+  const cleanKey = (apiKey || '').trim().replace(/^["']|["']$/g, '');
+  if (!cleanKey) {
+    return {
+      success: false,
+      message: 'API Key cannot be empty',
+      error: 'Empty API key'
+    };
+  }
+
+  const keyPreview = cleanKey.length > 8 
+    ? `${cleanKey.substring(0, 6)}••••${cleanKey.substring(cleanKey.length - 4)}`
+    : '••••••••';
+
+  const startTime = Date.now();
+  const modelsToTry = Array.from(new Set([PRIMARY_MODEL, ...GEMINI_MODELS]));
+  let lastError = '';
+
+  for (const model of modelsToTry) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: cleanKey });
+      const response = await ai.models.generateContent({
+        model,
+        contents: 'Reply with the single word "OK" to verify API key connectivity.'
+      });
+
+      const text = response.text || '';
+      const latencyMs = Date.now() - startTime;
+
+      if (text) {
+        return {
+          success: true,
+          model,
+          keyPreview,
+          latencyMs,
+          message: `API Key verified successfully with ${model} (${latencyMs}ms)`
+        };
+      }
+    } catch (err: any) {
+      lastError = err?.message || String(err);
+      if (lastError.includes('API_KEY_INVALID') || lastError.includes('API key not valid') || lastError.includes('400')) {
+        return {
+          success: false,
+          keyPreview,
+          error: 'Invalid API Key. Please ensure you copied a valid key from Google AI Studio.',
+          message: 'Verification failed: Invalid API key'
+        };
+      }
+      if (lastError.includes('RESOURCE_EXHAUSTED') || lastError.includes('429')) {
+        return {
+          success: false,
+          keyPreview,
+          error: 'Quota exhausted (429). The key is authentic but has exceeded its current rate limit.',
+          message: 'Verification failed: Quota limit reached'
+        };
+      }
+    }
+  }
+
+  return {
+    success: false,
+    keyPreview,
+    error: lastError || 'Could not connect to Gemini API. Please check your network and API key.',
+    message: 'Verification failed'
+  };
+}
 
 let userApiKeys: string[] = [];
 

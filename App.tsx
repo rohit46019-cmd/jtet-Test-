@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { extractTextFromPDF } from './services/pdfService';
-import { generateQuizFromText, generateQuizFromPrompt, generateSingleQuestion, generateBatchQuestions, setUserApiKeys } from './services/geminiService';
+import { generateQuizFromText, generateQuizFromPrompt, generateSingleQuestion, generateBatchQuestions, setUserApiKeys, verifyGeminiApiKey, KeyVerificationResult } from './services/geminiService';
 import { AppState, TabState, Quiz as QuizType, UserAnswer, StoredQuiz, BookmarkedQuestion, Category, QuizConfig, SavedQuizSession } from './types';
 import FileUpload from './components/FileUpload';
 import Quiz from './components/Quiz';
@@ -27,7 +27,7 @@ import {
   ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
   ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe,
   Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw, Brain, CheckSquare,
-  Search
+  Search, Loader2, ExternalLink, Check, AlertTriangle
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 
@@ -65,6 +65,10 @@ const App: React.FC = () => {
   const [pastedText, setPastedText] = useState<string>('');
   const [userApiKeys, setUserApiKeysState] = useState<string[]>([]);
   const [newKeyInput, setNewKeyInput] = useState('');
+  const [isVerifyingKey, setIsVerifyingKey] = useState(false);
+  const [keyVerificationFeedback, setKeyVerificationFeedback] = useState<KeyVerificationResult | null>(null);
+  const [testingKeyIndex, setTestingKeyIndex] = useState<number | null>(null);
+  const [keyStatusMap, setKeyStatusMap] = useState<Record<number, KeyVerificationResult>>({});
   const [aiPrompt, setAiPrompt] = useState('');
   const [pdfQuestionCount, setPdfQuestionCount] = useState(20);
   const [showPasteArea, setShowPasteArea] = useState(false);
@@ -302,15 +306,77 @@ const App: React.FC = () => {
   };
 
   const addApiKey = () => {
-    if (!newKeyInput.trim()) return;
-    const updated = [...userApiKeys, newKeyInput.trim()];
+    const trimmed = newKeyInput.trim();
+    if (!trimmed) return;
+    const updated = Array.from(new Set([...userApiKeys, trimmed]));
     saveUserApiKeys(updated);
     setNewKeyInput('');
+    setKeyVerificationFeedback({
+      success: true,
+      message: 'API Key added successfully! You can verify it below.',
+      keyPreview: trimmed.length > 8 ? `${trimmed.substring(0, 6)}••••${trimmed.substring(trimmed.length - 4)}` : '••••••••'
+    });
+  };
+
+  const handleVerifyAndAddKey = async () => {
+    const trimmed = newKeyInput.trim();
+    if (!trimmed) {
+      setKeyVerificationFeedback({
+        success: false,
+        message: 'Please enter a valid Gemini API Key.',
+        error: 'Empty API key input'
+      });
+      return;
+    }
+
+    setIsVerifyingKey(true);
+    setKeyVerificationFeedback(null);
+    try {
+      const result = await verifyGeminiApiKey(trimmed);
+      setKeyVerificationFeedback(result);
+      if (result.success) {
+        const updated = Array.from(new Set([...userApiKeys, trimmed]));
+        saveUserApiKeys(updated);
+        setNewKeyInput('');
+      }
+    } catch (err: any) {
+      setKeyVerificationFeedback({
+        success: false,
+        message: 'Failed to verify API key.',
+        error: err.message || String(err)
+      });
+    } finally {
+      setIsVerifyingKey(false);
+    }
+  };
+
+  const handleTestSpecificKey = async (key: string, index: number) => {
+    setTestingKeyIndex(index);
+    try {
+      const result = await verifyGeminiApiKey(key);
+      setKeyStatusMap(prev => ({ ...prev, [index]: result }));
+    } catch (err: any) {
+      setKeyStatusMap(prev => ({ 
+        ...prev, 
+        [index]: { 
+          success: false, 
+          message: 'Verification failed', 
+          error: err.message || String(err) 
+        } 
+      }));
+    } finally {
+      setTestingKeyIndex(null);
+    }
   };
 
   const removeApiKey = (index: number) => {
     const updated = userApiKeys.filter((_, i) => i !== index);
     saveUserApiKeys(updated);
+    setKeyStatusMap(prev => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -465,6 +531,7 @@ const App: React.FC = () => {
   const activeMenuQuizIdRef = useRef(activeMenuQuizId);
   const editingQuizIdRef = useRef(editingQuizId);
   const lastBackPressTime = useRef<number>(0);
+  const generationCancelledRef = useRef<boolean>(false);
 
   useEffect(() => { appStateRef.current = appState; }, [appState]);
   useEffect(() => { tabRef.current = tab; }, [tab]);
@@ -607,7 +674,7 @@ const App: React.FC = () => {
 
       // 4. If in processing/generating screen, return to IDLE
       if (appStateRef.current === 'PROCESSING_PDF' || appStateRef.current === 'GENERATING_QUIZ') {
-        setAppState('IDLE');
+        handleCancelGeneration();
         return;
       }
 
@@ -928,16 +995,26 @@ const App: React.FC = () => {
     setShowPasteArea(false);
   };
 
+  const handleCancelGeneration = () => {
+    generationCancelledRef.current = true;
+    setAppState('IDLE');
+    setTempText('');
+    setError(null);
+  };
+
   const startPdfGeneration = async () => {
     try {
       setError(null);
+      generationCancelledRef.current = false;
       setAppState('GENERATING_QUIZ');
       const generatedQuiz = await generateQuizFromText(tempText, pdfQuestionCount, aiLanguage, quizDifficulty);
+      if (generationCancelledRef.current) return;
       saveToLibrary(generatedQuiz);
       setTempText('');
       setAppState('IDLE');
       handleInitiateQuiz(generatedQuiz);
     } catch (err: any) {
+      if (generationCancelledRef.current) return;
       setError(err.message || "Generation failed.");
       setAppState('IDLE');
     }
@@ -947,8 +1024,10 @@ const App: React.FC = () => {
     if (!aiPrompt.trim()) return;
     try {
       setError(null);
+      generationCancelledRef.current = false;
       setAppState('GENERATING_QUIZ');
       const generatedQuiz = await generateQuizFromPrompt(aiPrompt, 6, aiLanguage, quizDifficulty); 
+      if (generationCancelledRef.current) return;
       // Ensure all questions have unique UUIDs
       const seenIds = new Set<string>();
       const sanitizedQuiz: QuizType = {
@@ -966,6 +1045,7 @@ const App: React.FC = () => {
       setAppState('IDLE');
       handleInitiateQuiz(sanitizedQuiz);
     } catch (err: any) {
+      if (generationCancelledRef.current) return;
       setError(err.message || "AI Prompt failed.");
       setAppState('IDLE');
     }
@@ -2228,7 +2308,12 @@ const App: React.FC = () => {
           />
         )}
 
-        {(appState === 'PROCESSING_PDF' || appState === 'GENERATING_QUIZ') && <LoadingScreen stage={appState as any} />}
+        {(appState === 'PROCESSING_PDF' || appState === 'GENERATING_QUIZ') && (
+          <LoadingScreen 
+            stage={appState as any} 
+            onCancel={handleCancelGeneration} 
+          />
+        )}
 
         {appState === 'QUIZ_IN_PROGRESS' && quiz && (
           <Quiz 
@@ -2294,54 +2379,191 @@ const App: React.FC = () => {
                <div className="space-y-6">
                   <div>
                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <Zap size={12} className="text-amber-400" /> Multi-Key API Rotation
+                        <Zap size={12} className="text-amber-400" /> Multi-Key API Rotation & Verification
                      </label>
                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-                        Add multiple <b>Gemini API Keys</b> here. The app will automatically <b>rotate</b> through them if one hits a limit, ensuring <b>Infinity</b> quiz generation without interruptions.
+                        Add your <b>Google Gemini API Key</b> below. The app will automatically <b>test and verify</b> the key with Gemini AI models, fetch model connectivity info, and <b>rotate</b> keys to prevent rate limits during Infinity quiz generation.
                      </p>
                      
-                     <div className="flex gap-2 mb-6">
+                     <div className="flex flex-col sm:flex-row gap-2 mb-3">
                         <input 
                            type="text" 
                            value={newKeyInput}
                            onChange={(e) => setNewKeyInput(e.target.value)}
-                           placeholder="Paste Gemini API Key here..."
+                           placeholder="Paste Gemini API Key (AIzaSy...)"
                            className={`flex-1 px-5 py-4 rounded-2xl text-xs font-bold border transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-500'}`}
                         />
-                        <button 
-                           onClick={addApiKey}
-                           className="px-6 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/25 active:scale-95 transition-all h-[52px]"
-                        >
-                           Add
-                        </button>
+                        <div className="flex gap-2">
+                           <button 
+                              onClick={handleVerifyAndAddKey}
+                              disabled={isVerifyingKey || !newKeyInput.trim()}
+                              className="flex-1 sm:flex-initial px-5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/25 active:scale-95 transition-all h-[52px] flex items-center justify-center gap-2 cursor-pointer"
+                           >
+                              {isVerifyingKey ? (
+                                 <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>Verifying...</span>
+                                 </>
+                              ) : (
+                                 <>
+                                    <Sparkles size={14} />
+                                    <span>Verify & Add</span>
+                                 </>
+                              )}
+                           </button>
+                           <button 
+                              onClick={addApiKey}
+                              disabled={!newKeyInput.trim()}
+                              className={`px-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all h-[52px] cursor-pointer ${isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                           >
+                              Quick Add
+                           </button>
+                        </div>
                      </div>
 
+                     {/* Real-time Verification Feedback Banner */}
+                     {keyVerificationFeedback && (
+                        <div className={`p-4 rounded-2xl border mb-4 transition-all flex items-start justify-between gap-3 ${
+                           keyVerificationFeedback.success 
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300' 
+                              : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+                        }`}>
+                           <div className="flex items-start gap-3">
+                              {keyVerificationFeedback.success ? (
+                                 <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-emerald-500/20">
+                                    <CheckCircle2 size={16} />
+                                 </div>
+                              ) : (
+                                 <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-rose-500/20">
+                                    <AlertTriangle size={16} />
+                                 </div>
+                              )}
+                              <div>
+                                 <h5 className="text-xs font-black uppercase tracking-tight">
+                                    {keyVerificationFeedback.success ? "API Key Verified & Connected" : "API Key Verification Failed"}
+                                 </h5>
+                                 <p className="text-[11px] font-medium mt-0.5 opacity-90">
+                                    {keyVerificationFeedback.message}
+                                 </p>
+                                 {keyVerificationFeedback.error && (
+                                    <p className="text-[10px] font-mono mt-1 p-2 rounded-lg bg-rose-950/10 dark:bg-rose-950/40 border border-rose-500/20 text-rose-600 dark:text-rose-400">
+                                       {keyVerificationFeedback.error}
+                                    </p>
+                                 )}
+                                 {keyVerificationFeedback.model && (
+                                    <div className="flex items-center gap-2 mt-2">
+                                       <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-[9px] font-black tracking-wider uppercase">
+                                          Model: {keyVerificationFeedback.model}
+                                       </span>
+                                       {keyVerificationFeedback.latencyMs && (
+                                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-[9px] font-black tracking-wider uppercase">
+                                             Latency: {keyVerificationFeedback.latencyMs}ms
+                                          </span>
+                                       )}
+                                    </div>
+                                 )}
+                              </div>
+                           </div>
+                           <button 
+                              onClick={() => setKeyVerificationFeedback(null)}
+                              className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 opacity-60 hover:opacity-100 transition-all"
+                           >
+                              <X size={14} />
+                           </button>
+                        </div>
+                     )}
+
                      <div className="space-y-3">
-                        <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2">Active Keys ({userApiKeys.length})</h4>
+                        <div className="flex items-center justify-between px-2">
+                           <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Keys ({userApiKeys.length})</h4>
+                           <a 
+                              href="https://aistudio.google.com/app/apikey" 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider hover:underline flex items-center gap-1"
+                           >
+                              <span>Get Free API Key</span>
+                              <ExternalLink size={10} />
+                           </a>
+                        </div>
                         {userApiKeys.length === 0 ? (
                            <div className="p-8 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
                               <p className="text-[11px] text-slate-400 font-bold italic">No custom keys added. Using system default keys.</p>
                            </div>
                         ) : (
                            <div className="grid grid-cols-1 gap-2">
-                              {userApiKeys.map((key, idx) => (
-                                 <div key={idx} className={`flex items-center justify-between p-4 rounded-2xl border ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-100'}`}>
-                                    <div className="flex items-center gap-3">
-                                       <div className="w-8 h-8 rounded-xl bg-green-500/10 text-green-500 flex items-center justify-center">
-                                          <ShieldCheck size={16} />
+                              {userApiKeys.map((key, idx) => {
+                                 const status = keyStatusMap[idx];
+                                 const isTesting = testingKeyIndex === idx;
+                                 return (
+                                    <div key={idx} className={`p-3.5 rounded-2xl border transition-all ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-100'}`}>
+                                       <div className="flex items-center justify-between gap-3">
+                                          <div className="flex items-center gap-3 min-w-0">
+                                             <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                                status?.success 
+                                                   ? 'bg-emerald-500/10 text-emerald-500' 
+                                                   : status?.error 
+                                                      ? 'bg-rose-500/10 text-rose-500' 
+                                                      : 'bg-green-500/10 text-green-500'
+                                             }`}>
+                                                <ShieldCheck size={16} />
+                                             </div>
+                                             <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                   <code className="text-[10px] font-mono text-slate-600 dark:text-slate-300 font-bold">
+                                                      {key.substring(0, 8)}••••••••{key.substring(key.length - 4)}
+                                                   </code>
+                                                   <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50">
+                                                      Key #{idx + 1}
+                                                   </span>
+                                                </div>
+                                                {status && (
+                                                   <div className="mt-1">
+                                                      {status.success ? (
+                                                         <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                            <Check size={10} className="stroke-[3]" /> Verified ({status.model} • {status.latencyMs}ms)
+                                                         </span>
+                                                      ) : (
+                                                         <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-600 dark:text-rose-400">
+                                                            <AlertCircle size={10} /> {status.error || 'Failed'}
+                                                         </span>
+                                                      )}
+                                                   </div>
+                                                )}
+                                             </div>
+                                          </div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                             <button 
+                                                onClick={() => handleTestSpecificKey(key, idx)}
+                                                disabled={isTesting}
+                                                title="Test API Key Connectivity"
+                                                className={`p-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                                   isDarkMode 
+                                                      ? 'bg-slate-700/60 hover:bg-slate-700 text-slate-300' 
+                                                      : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                                                }`}
+                                             >
+                                                {isTesting ? (
+                                                   <Loader2 size={13} className="animate-spin text-blue-500" />
+                                                ) : (
+                                                   <RotateCcw size={13} />
+                                                )}
+                                                <span className="text-[9px] uppercase tracking-wider font-black">
+                                                   {isTesting ? 'Testing' : 'Verify'}
+                                                </span>
+                                             </button>
+                                             <button 
+                                                onClick={() => removeApiKey(idx)}
+                                                title="Remove Key"
+                                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all cursor-pointer"
+                                             >
+                                                <Trash2 size={15} />
+                                             </button>
+                                          </div>
                                        </div>
-                                       <code className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                                          {key.substring(0, 8)}••••••••{key.substring(key.length - 4)}
-                                       </code>
                                     </div>
-                                    <button 
-                                       onClick={() => removeApiKey(idx)}
-                                       className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                                    >
-                                       <Trash2 size={16} />
-                                    </button>
-                                 </div>
-                              ))}
+                                 );
+                              })}
                            </div>
                         )}
                      </div>

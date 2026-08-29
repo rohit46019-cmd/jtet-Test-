@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { Loader2, BrainCircuit, Sparkles, Database, Microscope, ChevronRight, Search } from 'lucide-react';
+import { Loader2, BrainCircuit, Sparkles, Database, Microscope, ChevronRight, Search, X } from 'lucide-react';
 
 interface LoadingScreenProps {
   stage: 'PROCESSING_PDF' | 'GENERATING_QUIZ';
+  onCancel?: () => void;
 }
 
-const LoadingScreen: React.FC<LoadingScreenProps> = ({ stage }) => {
+const LoadingScreen: React.FC<LoadingScreenProps> = ({ stage, onCancel }) => {
   const [progress, setProgress] = useState(0);
   const [feed, setFeed] = useState<string[]>([]);
   
@@ -83,6 +84,16 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ stage }) => {
             />
          </div>
       </div>
+
+      {onCancel && (
+        <button
+          onClick={onCancel}
+          className="mt-6 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-300 dark:hover:border-rose-800 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
+        >
+          <X size={14} className="stroke-[2.5]" />
+          <span>Cancel Generation</span>
+        </button>
+      )}
     </div>
   );
 };
