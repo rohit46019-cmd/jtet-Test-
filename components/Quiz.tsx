@@ -666,10 +666,16 @@ const Quiz: React.FC<QuizProps> = ({
     return () => clearInterval(interval);
   }, [totalSecondsAllowed, userAnswers, onFinish, isPaused]);
 
-  // Per-Question Countdown Timer (if timePerQuestion > 0)
+  // Per-Question Countdown Timer Reset
+  useEffect(() => {
+    if (effectiveTimePerQ > 0) {
+      setQuestionTimer(effectiveTimePerQ);
+    }
+  }, [currentQuestionIndex, effectiveTimePerQ]);
+
+  // Per-Question Countdown Timer Interval
   useEffect(() => {
     if (effectiveTimePerQ <= 0 || isPaused) return;
-    setQuestionTimer(effectiveTimePerQ);
     const qInterval = setInterval(() => {
       setQuestionTimer(prev => {
         if (prev <= 1) {
@@ -679,7 +685,7 @@ const Quiz: React.FC<QuizProps> = ({
       });
     }, 1000);
     return () => clearInterval(qInterval);
-  }, [currentQuestionIndex, effectiveTimePerQ, isPaused]);
+  }, [isPaused, effectiveTimePerQ]);
 
   // Sync current question's state on question change
   useEffect(() => {
@@ -948,13 +954,13 @@ const Quiz: React.FC<QuizProps> = ({
 
       {/* Question Body with Touch Swipe Detection */}
       <div 
-        className="flex-1 overflow-y-auto px-0 sm:px-4 pt-1.5 pb-6 relative touch-pan-y"
+        className={`flex-1 ${isPaused || showSubmitConfirm || showExitConfirm || showReportModal || showAiModal || showPalette ? 'overflow-hidden' : 'overflow-y-auto'} px-0 sm:px-4 pt-1.5 pb-6 relative touch-pan-y`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
         {isPaused && (
-          <div className="absolute inset-0 z-55 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-slate-900 w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl border border-amber-500/30 text-center animate-in zoom-in-95 duration-300">
               <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-inner">
                 <Timer size={32} className="animate-pulse" />

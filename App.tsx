@@ -1887,12 +1887,12 @@ const App: React.FC = () => {
                              </label>
                              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md">AI Active</span>
                           </div>
-                          <div className="flex flex-wrap gap-2 sm:gap-3">
+                          <div className="grid grid-cols-3 gap-2 sm:gap-4">
                              {['English', 'Hindi', 'Mixed (Hinglish)'].map(lang => (
                                 <button
                                    key={lang}
                                    onClick={() => setAiLanguage(lang)}
-                                   className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-[1.25rem] text-xs sm:text-sm font-bold transition-all border-2 ${
+                                   className={`p-2.5 sm:p-3 rounded-[1.25rem] text-[10px] sm:text-sm font-bold transition-all border-2 flex items-center justify-center text-center leading-tight ${
                                      aiLanguage === lang 
                                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-500 shadow-sm' 
                                        : isDarkMode 
