@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from 'firebase/auth';
+import { User, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, updateProfile } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 
 export function useAuth() {
@@ -133,6 +133,29 @@ export function useAuth() {
     } catch {}
   };
 
-  return { user, isAdmin, loading, login, loginAsGuest, logout, authError };
+  const updateUserProfile = async (displayName: string, photoURL: string) => {
+    // If real firebase user
+    if (auth.currentUser) {
+       try {
+         await updateProfile(auth.currentUser, { displayName, photoURL });
+       } catch (e) {
+         console.warn("Firebase updateProfile failed:", e);
+       }
+    }
+    
+    // Update local state
+    if (user) {
+      const updatedUser: any = { ...user, displayName, photoURL };
+      setUser(updatedUser);
+      localStorage.setItem('qf_auth_user', JSON.stringify({
+          uid: updatedUser.uid,
+          email: updatedUser.email,
+          displayName: updatedUser.displayName,
+          photoURL: updatedUser.photoURL
+      }));
+    }
+  };
+
+  return { user, isAdmin, loading, login, loginAsGuest, logout, authError, updateUserProfile };
 }
 

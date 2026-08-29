@@ -21,12 +21,16 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
   const [activeTab, setActiveTab] = useState<'categories' | 'users' | 'quizzes' | 'settings' | 'reports'>('categories');
   const [newCatName, setNewCatName] = useState('');
   const [newCatThumbnail, setNewCatThumbnail] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('📁');
   const [parentCategoryId, setParentCategoryId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editThumbnail, setEditThumbnail] = useState('');
+  const [editIcon, setEditIcon] = useState('📁');
   const [editingUserPts, setEditingUserPts] = useState<{ id: string; points: number } | null>(null);
+
+  const predefinedIcons = ['📁', '🌍', '⚛️', '📜', '⚖️', '📍', '🔬', '🧪', '💻', '📐', '🧬', '🚀', '🎨', '🎶', '🧠', '📈', '🏥', '⚽', '🌱', '⚙️', '📚'];
 
   // Inline Subcategory Creation state
   const [addingSubToCatId, setAddingSubToCatId] = useState<string | null>(null);
@@ -173,6 +177,7 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
       name: newCatName.trim(),
       parentId: parentCategoryId ? String(parentCategoryId).trim() : null,
       thumbnailUrl: thumb,
+      icon: newCatIcon,
       color: '#' + Math.floor(Math.random()*16777215).toString(16),
       createdAt: Date.now()
     };
@@ -189,6 +194,7 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
       });
       setNewCatName('');
       setNewCatThumbnail('');
+      setNewCatIcon('📁');
       setParentCategoryId('');
     } catch (e) {
       console.error(e);
@@ -260,7 +266,8 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
     const updated = categories.map(c => c.id === id ? {
       ...c,
       name: editName.trim(),
-      thumbnailUrl: editThumbnail.trim() || getTopicThumbnail(editName.trim())
+      thumbnailUrl: editThumbnail.trim() || getTopicThumbnail(editName.trim()),
+      icon: editIcon
     } : c);
     syncCategories(updated);
     setEditingId(null);
@@ -271,7 +278,8 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editName.trim(),
-          thumbnailUrl: editThumbnail.trim() || getTopicThumbnail(editName.trim())
+          thumbnailUrl: editThumbnail.trim() || getTopicThumbnail(editName.trim()),
+          icon: editIcon
         })
       });
     } catch (e) {
@@ -614,13 +622,25 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-              <input 
-                type="text"
-                value={newCatName}
-                onChange={(e) => setNewCatName(e.target.value)}
-                placeholder="Category Name (e.g. Science, Physics, UPSC Prep)"
-                className="sm:col-span-5 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-              />
+              <div className="sm:col-span-5 flex gap-2">
+                <select
+                  value={newCatIcon}
+                  onChange={(e) => setNewCatIcon(e.target.value)}
+                  className="w-12 px-1 text-center text-lg rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer"
+                  title="Select Icon"
+                >
+                  {predefinedIcons.map(icon => (
+                    <option key={icon} value={icon}>{icon}</option>
+                  ))}
+                </select>
+                <input 
+                  type="text"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  placeholder="Category Name (e.g. Science)"
+                  className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
               <select
                 value={parentCategoryId}
                 onChange={(e) => setParentCategoryId(e.target.value)}
@@ -684,6 +704,15 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
                     <div className="flex items-center justify-between gap-2">
                       {editingId === cat.id ? (
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 flex-1 mr-2">
+                          <select
+                            value={editIcon}
+                            onChange={(e) => setEditIcon(e.target.value)}
+                            className="w-12 px-1 text-center text-lg rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer"
+                          >
+                            {predefinedIcons.map(icon => (
+                              <option key={icon} value={icon}>{icon}</option>
+                            ))}
+                          </select>
                           <input 
                             type="text" 
                             value={editName}
@@ -744,7 +773,7 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
                             <Plus size={11} /> Sub-Category
                           </button>
                           <button 
-                            onClick={() => { setEditingId(cat.id); setEditName(cat.name); setEditThumbnail(cat.thumbnailUrl || ''); }} 
+                            onClick={() => { setEditingId(cat.id); setEditName(cat.name); setEditThumbnail(cat.thumbnailUrl || ''); setEditIcon(cat.icon || '📁'); }} 
                             className="p-1 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/20 rounded-lg transition-colors"
                             title="Edit Category"
                           ><Edit2 size={12} /></button>

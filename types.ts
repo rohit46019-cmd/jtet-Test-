@@ -41,6 +41,7 @@ export interface Category {
   name: string;
   parentId?: string | null;
   thumbnailUrl?: string;
+  icon?: string;
   createdAt?: number;
 }
 
