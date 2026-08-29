@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, X, Volume2, VolumeX, Copy, Check, RefreshCw, BookOpen, AlertTriangle, Lightbulb, CheckCircle2 } from 'lucide-react';
+import { Sparkles, X, Volume2, VolumeX, Copy, Check, RefreshCw, BookOpen, AlertTriangle, Lightbulb, CheckCircle2, Key, ArrowRight } from 'lucide-react';
 import { Question } from '../types';
-import { generateDeepExplanation } from '../services/geminiService';
+import { generateDeepExplanation, setUserApiKeys, getClientGenAIKeys } from '../services/geminiService';
 
 interface AiExplainModalProps {
   question: Question;
@@ -25,6 +25,8 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
   const [language, setLanguage] = useState<'Hindi & English' | 'Hindi' | 'English'>('Hindi & English');
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [inlineKeyInput, setInlineKeyInput] = useState('');
+  const [showKeyPrompt, setShowKeyPrompt] = useState(false);
 
   const fetchExplanation = async (lang = language) => {
     try {
@@ -34,11 +36,34 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
       setIsSpeaking(false);
       const res = await generateDeepExplanation(question, userSelectedOption, lang);
       setExplanation(res);
+      setShowKeyPrompt(false);
     } catch (err: any) {
-      setError(err?.message || 'Failed to generate AI explanation. Please check API key.');
+      const errMsg = err?.message || 'Failed to generate AI explanation.';
+      setError(errMsg);
+      if (errMsg.includes('API key') || getClientGenAIKeys().length === 0) {
+        setShowKeyPrompt(true);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveInlineKey = () => {
+    const trimmed = inlineKeyInput.trim();
+    if (!trimmed) return;
+    
+    // Save to user API keys and localStorage
+    const currentKeys = getClientGenAIKeys();
+    const updated = Array.from(new Set([trimmed, ...currentKeys]));
+    setUserApiKeys(updated);
+    try {
+      localStorage.setItem('qf_user_api_keys', JSON.stringify(updated));
+      localStorage.setItem('gemini_api_key', trimmed);
+    } catch (_) {}
+
+    setInlineKeyInput('');
+    setShowKeyPrompt(false);
+    fetchExplanation(language);
   };
 
   useEffect(() => {
@@ -250,18 +275,73 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
               </div>
             </div>
           ) : error ? (
-            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs space-y-2">
-              <div className="flex items-center gap-2 font-bold">
-                <AlertTriangle size={16} />
-                <span>Could not generate explanation</span>
+            <div className="space-y-4">
+              {/* Question's built-in explanation fallback if available */}
+              {question.explanation && question.explanation.trim().length > 0 && (
+                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-black text-[11px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                    <CheckCircle2 size={14} />
+                    <span>Verified Answer & Solution</span>
+                  </div>
+                  <p className="text-xs leading-relaxed font-medium text-slate-800 dark:text-slate-100">
+                    {question.explanation}
+                  </p>
+                </div>
+              )}
+
+              {/* API Key Configuration Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
+                    <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400">
+                      <Key size={14} />
+                    </div>
+                    <span>Enter Gemini API Key for Instant AI Insights</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Paste your free Google Gemini API key below to unlock instant deep concept breakdowns, mistake analysis, and exam memory tricks.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="password"
+                    value={inlineKeyInput}
+                    onChange={(e) => setInlineKeyInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveInlineKey();
+                    }}
+                    placeholder="AIzaSy..."
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                  <button
+                    onClick={handleSaveInlineKey}
+                    disabled={!inlineKeyInput.trim()}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-blue-500/20 active:scale-95 shrink-0"
+                  >
+                    <span>Save & Generate</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400">
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-bold"
+                  >
+                    Get free API key at Google AI Studio ↗
+                  </a>
+                  <button
+                    onClick={() => fetchExplanation(language)}
+                    className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-bold"
+                  >
+                    Try Again
+                  </button>
+                </div>
               </div>
-              <p className="text-[11px] leading-relaxed">{error}</p>
-              <button
-                onClick={() => fetchExplanation(language)}
-                className="mt-2 px-3 py-1.5 bg-rose-600 text-white rounded-xl text-[10px] font-bold"
-              >
-                Try Again
-              </button>
             </div>
           ) : explanation ? (
             <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-50/60 via-blue-50/40 to-slate-50/60 dark:from-slate-800/80 dark:via-slate-800/50 dark:to-slate-900 border border-blue-100 dark:border-slate-700 space-y-3.5">

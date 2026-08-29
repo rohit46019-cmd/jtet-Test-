@@ -1,15 +1,12 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import crypto from 'crypto';
 
-export const PRIMARY_MODEL = 'gemini-2.5-flash';
+export const PRIMARY_MODEL = 'gemini-3.7-flash';
 export const FALLBACK_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-2.5-pro',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-flash',
   'gemini-3.7-flash',
-  'gemini-3.5-flash'
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite'
 ];
 
 export interface QuestionData {
@@ -94,11 +91,26 @@ function parseGeminiError(error: any): { message: string; code?: number } {
 function getAvailableKeys(customKeys?: string[]): string[] {
   const userKeys = (customKeys || [])
     .flatMap(k => k.split(','))
-    .map(k => k.trim())
+    .map(k => k.replace(/["']/g, '').trim())
     .filter(Boolean);
 
-  const envKeysString = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-  const envKeys = envKeysString.split(',').map(k => k.trim()).filter(Boolean);
+  const envCandidates = [
+    process.env.GEMINI_API_KEY,
+    process.env.VITE_GEMINI_API_KEY,
+    process.env.GOOGLE_API_KEY,
+    process.env.VITE_GOOGLE_API_KEY,
+    process.env.API_KEY,
+    process.env.VITE_API_KEY,
+    process.env.GOOGLE_GENAI_API_KEY,
+    process.env.GEMINI_KEY,
+    process.env.GEMINI_API_KEYS
+  ];
+
+  const envKeys = envCandidates
+    .filter((k): k is string => Boolean(k))
+    .flatMap(k => k.split(','))
+    .map(k => k.replace(/["']/g, '').trim())
+    .filter(Boolean);
 
   const combined = [...userKeys, ...envKeys];
   return Array.from(new Set(combined));

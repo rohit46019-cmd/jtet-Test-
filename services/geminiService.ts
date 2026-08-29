@@ -1,15 +1,12 @@
 import { Quiz, Question } from "../types";
 import { GoogleGenAI, Type } from "@google/genai";
 
-export const PRIMARY_MODEL = 'gemini-2.5-flash';
+export const PRIMARY_MODEL = 'gemini-3.7-flash';
 export const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-2.5-pro',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-flash',
   'gemini-3.7-flash',
-  'gemini-3.5-flash'
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite'
 ];
 
 let userApiKeys: string[] = [];
@@ -24,23 +21,38 @@ export const setUserApiKeys = (keys: string[]) => {
 /**
  * Returns user or environment keys available on client side
  */
-function getClientGenAIKeys(): string[] {
+export function getClientGenAIKeys(): string[] {
   let keys = [...userApiKeys];
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem('qf_user_api_keys') || localStorage.getItem('gemini_api_key');
+      const stored = localStorage.getItem('qf_user_api_keys') || localStorage.getItem('gemini_api_key') || localStorage.getItem('api_key');
       if (stored) {
         if (stored.startsWith('[')) {
           const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) keys.push(...parsed.map(k => String(k).trim()).filter(Boolean));
+          if (Array.isArray(parsed)) keys.push(...parsed.map(k => String(k).replace(/["']/g, '').trim()).filter(Boolean));
         } else {
-          keys.push(...stored.split(',').map(k => k.trim()).filter(Boolean));
+          keys.push(...stored.split(',').map(k => k.replace(/["']/g, '').trim()).filter(Boolean));
         }
       }
     } catch (_) {}
   }
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) {
-    keys.push((import.meta as any).env.VITE_GEMINI_API_KEY);
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    const env = (import.meta as any).env;
+    const candidates = [
+      env.VITE_GEMINI_API_KEY,
+      env.VITE_GOOGLE_API_KEY,
+      env.VITE_API_KEY,
+      env.VITE_GEMINI_KEY,
+      env.VITE_GOOGLE_GENAI_API_KEY,
+      env.GEMINI_API_KEY,
+      env.GOOGLE_API_KEY,
+      env.API_KEY
+    ];
+    candidates.forEach(c => {
+      if (typeof c === 'string') {
+        keys.push(...c.split(',').map(k => k.replace(/["']/g, '').trim()).filter(Boolean));
+      }
+    });
   }
   return Array.from(new Set(keys)).filter(Boolean);
 }
@@ -117,7 +129,9 @@ export async function generateBatchQuestions(
 
       if (res.ok) {
         const data = await res.json();
-        return data.questions || [];
+        if (Array.isArray(data.questions) && data.questions.length > 0) {
+          return data.questions;
+        }
       } else {
         try {
           const errorData = await res.json();
@@ -130,50 +144,71 @@ export async function generateBatchQuestions(
       backendError = err?.message || String(err);
     }
     if (attempt === 0) {
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 600));
     }
   }
 
-  // Client-side fallback if backend fails or on Vercel
+  // Client-side fallback if backend route fails or on Vercel
   const clientKeys = getClientGenAIKeys();
   if (clientKeys.length > 0) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: clientKeys[0] });
-      const response = await ai.models.generateContent({
-        model: PRIMARY_MODEL,
-        contents: `Generate exactly ${count} unique MCQ questions on topic: "${prompt}". Return valid JSON with questions array.`,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              questions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    id: { type: Type.STRING },
-                    question: { type: Type.STRING },
-                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    correctAnswerIndex: { type: Type.INTEGER },
-                    explanation: { type: Type.STRING }
-                  },
-                  required: ['question', 'options', 'correctAnswerIndex', 'explanation']
-                }
+    for (const key of clientKeys) {
+      const ai = new GoogleGenAI({ apiKey: key });
+      for (const model of GEMINI_MODELS) {
+        try {
+          const historyNote = history.length > 0
+            ? `Avoid repeating these previous questions:\n${history.slice(-20).map(h => `- ${h}`).join('\n')}`
+            : '';
+
+          const response = await ai.models.generateContent({
+            model,
+            contents: `You are an elite competitive examination paper setter.
+Generate exactly ${count} distinct, high-quality, exam-grade Multiple Choice Questions (MCQs) for the topic: "${prompt}".
+Target Language: ${language}
+Difficulty Level: ${difficulty}
+
+${historyNote}
+
+CRITICAL RULES:
+1. Each question must have EXACTLY 4 plausible options.
+2. Provide a 0-indexed 'correctAnswerIndex' (0, 1, 2, or 3).
+3. Include a comprehensive explanation justifying the correct answer.
+4. Output strict JSON matching the schema.`,
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  questions: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        id: { type: Type.STRING },
+                        question: { type: Type.STRING },
+                        options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        correctAnswerIndex: { type: Type.INTEGER },
+                        explanation: { type: Type.STRING }
+                      },
+                      required: ['question', 'options', 'correctAnswerIndex', 'explanation']
+                    }
+                  }
+                },
+                required: ['questions']
               }
-            },
-            required: ['questions']
+            }
+          });
+          const parsed = JSON.parse(response.text || '{}');
+          if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+            return parsed.questions.map((q: any) => ({ ...q, id: crypto.randomUUID() }));
           }
+        } catch (_) {
+          continue;
         }
-      });
-      const parsed = JSON.parse(response.text || '{}');
-      return (parsed.questions || []).map((q: any) => ({ ...q, id: crypto.randomUUID() }));
-    } catch (clientErr: any) {
-      throw new Error(`Client-side fallback also failed: ${clientErr.message || clientErr}`);
+      }
     }
   }
 
-  throw new Error(backendError ? `AI Generation Error: ${backendError}` : 'Failed to generate batch questions. Please check API key in Settings.');
+  throw new Error(backendError ? `AI Generation Error: ${backendError}` : 'Failed to generate batch questions. Please check GEMINI_API_KEY in Vercel or enter your API key in Settings.');
 }
 
 /**
@@ -198,18 +233,87 @@ export async function generateQuizFromText(
   language: string = 'English',
   difficulty: 'easy' | 'medium' | 'hard' = 'medium'
 ): Promise<Quiz> {
-  const res = await fetch('/api/ai/generate-from-text', {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify({ text, totalCount, language, difficulty })
-  });
+  try {
+    const res = await fetch('/api/ai/generate-from-text', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ text, totalCount, language, difficulty })
+    });
 
-  if (!res.ok) {
-    await handleResponseError(res, 'Failed to generate quiz from text');
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.quiz?.questions?.length) {
+        return data.quiz;
+      }
+    }
+  } catch (_) {}
+
+  // Client-side fallback for PDF/Text if server route is not responding on Vercel
+  const clientKeys = getClientGenAIKeys();
+  if (clientKeys.length > 0) {
+    for (const key of clientKeys) {
+      const ai = new GoogleGenAI({ apiKey: key });
+      for (const model of GEMINI_MODELS) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: `You are an elite competitive examination paper setter.
+Extract and formulate exactly ${totalCount} high-yield Multiple Choice Questions (MCQs) directly based on the provided text.
+Target Language: ${language}
+Difficulty: ${difficulty}
+
+TEXT CONTENT:
+${text.slice(0, 15000)}
+
+CRITICAL RULES:
+1. Formulate conceptual questions strictly based on the text.
+2. Each question MUST have exactly 4 options.
+3. Provide a 0-indexed 'correctAnswerIndex' (0, 1, 2, or 3).
+4. Include a detailed explanation.
+5. Return valid JSON matching schema.`,
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  questions: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        id: { type: Type.STRING },
+                        question: { type: Type.STRING },
+                        options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        correctAnswerIndex: { type: Type.INTEGER },
+                        explanation: { type: Type.STRING }
+                      },
+                      required: ['question', 'options', 'correctAnswerIndex', 'explanation']
+                    }
+                  }
+                },
+                required: ['title', 'questions']
+              }
+            }
+          });
+          const parsed = JSON.parse(response.text || '{}');
+          if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+            return {
+              id: crypto.randomUUID(),
+              title: parsed.title || 'Extracted Document Quiz',
+              questions: parsed.questions.map((q: any) => ({ ...q, id: crypto.randomUUID() })),
+              createdAt: Date.now(),
+              language
+            };
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+    }
   }
 
-  const data = await res.json();
-  return data.quiz;
+  throw new Error('Failed to generate quiz from text. Please verify your GEMINI_API_KEY in Vercel Settings or in the app Settings tab.');
 }
 
 /**
@@ -244,7 +348,11 @@ export async function generateClientDeepExplanation(
 ): Promise<string> {
   const keys = customKeys && customKeys.length > 0 ? customKeys : getClientGenAIKeys();
   if (keys.length === 0) {
-    throw new Error('No Gemini API key configured. Please add GEMINI_API_KEY in Vercel settings or enter your API key in app Settings.');
+    if (question.explanation && question.explanation.trim().length > 0) {
+      const correctOpt = question.options[question.correctAnswerIndex] || '';
+      return `**🎯 Verified Correct Answer:** Option ${String.fromCharCode(65 + question.correctAnswerIndex)} - ${correctOpt}\n\n**💡 Solution Breakdown:**\n${question.explanation}\n\n*(Note: Add your Gemini API Key below for AI-generated deep conceptual analysis and memory tricks.)*`;
+    }
+    throw new Error('No Gemini API key configured. Please add GEMINI_API_KEY in Vercel settings or enter your API key below.');
   }
 
   const selectedText = (userSelectedOption !== null && userSelectedOption !== undefined && question.options[userSelectedOption])
@@ -286,6 +394,12 @@ ${userSelectedOption !== null && userSelectedOption !== undefined && userSelecte
       }
     }
   }
+  
+  if (question.explanation && question.explanation.trim().length > 0) {
+    const correctOpt = question.options[question.correctAnswerIndex] || '';
+    return `**🎯 Verified Correct Answer:** Option ${String.fromCharCode(65 + question.correctAnswerIndex)} - ${correctOpt}\n\n**💡 Solution Breakdown:**\n${question.explanation}`;
+  }
+
   throw lastErr || new Error('Failed to generate explanation. Please check API key in Settings.');
 }
 
@@ -301,7 +415,12 @@ export async function generateDeepExplanation(
     const res = await fetch('/api/ai/explain', {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ question, userSelectedOption, language })
+      body: JSON.stringify({
+        question,
+        userSelectedOption,
+        language,
+        customKeys: getClientGenAIKeys()
+      })
     });
 
     if (res.ok) {

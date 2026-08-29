@@ -591,6 +591,49 @@ const Quiz: React.FC<QuizProps> = ({
     };
   }, [quiz, quizConfig, currentQuestionIndex, userAnswers, timer]);
 
+  // System Back button interception inside active quiz
+  useEffect(() => {
+    window.history.pushState({ screen: 'quiz_active' }, '');
+
+    const handleQuizPopState = () => {
+      // 1. If any modal/drawer is open inside the quiz, close it first and keep user in quiz
+      if (showAiModal) {
+        setShowAiModal(false);
+        window.history.pushState({ screen: 'quiz_active' }, '');
+        return;
+      }
+      if (showReportModal) {
+        setShowReportModal(false);
+        window.history.pushState({ screen: 'quiz_active' }, '');
+        return;
+      }
+      if (showPalette) {
+        setShowPalette(false);
+        window.history.pushState({ screen: 'quiz_active' }, '');
+        return;
+      }
+      if (showSubmitConfirm) {
+        setShowSubmitConfirm(false);
+        window.history.pushState({ screen: 'quiz_active' }, '');
+        return;
+      }
+      if (showExitConfirm) {
+        setShowExitConfirm(false);
+        window.history.pushState({ screen: 'quiz_active' }, '');
+        return;
+      }
+
+      // 2. If no modal is open, show the Pause / Save & Exit confirmation modal
+      setShowExitConfirm(true);
+      window.history.pushState({ screen: 'quiz_active' }, '');
+    };
+
+    window.addEventListener('popstate', handleQuizPopState);
+    return () => {
+      window.removeEventListener('popstate', handleQuizPopState);
+    };
+  }, [showAiModal, showReportModal, showPalette, showSubmitConfirm, showExitConfirm]);
+
   // Touch Swipe Gesture & Slide Transition State
   const [slideDirection, setSlideDirection] = useState<number>(1);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);

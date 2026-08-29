@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { extractTextFromPDF } from './services/pdfService';
 import { generateQuizFromText, generateQuizFromPrompt, generateSingleQuestion, generateBatchQuestions, setUserApiKeys } from './services/geminiService';
 import { AppState, TabState, Quiz as QuizType, UserAnswer, StoredQuiz, BookmarkedQuestion, Category, QuizConfig, SavedQuizSession } from './types';
@@ -446,16 +446,199 @@ const App: React.FC = () => {
     setAppState(newState);
   };
 
+  // State references for popstate event listener
+  const appStateRef = useRef(appState);
+  const tabRef = useRef(tab);
+  const selectedCategoryFilterRef = useRef(selectedCategoryFilter);
+  const selectedSubCategoryFilterRef = useRef(selectedSubCategoryFilter);
+  const showAiExplainModalRef = useRef(showAiExplainModal);
+  const pendingQuizToStartRef = useRef(pendingQuizToStart);
+  const resumeModalSessionRef = useRef(resumeModalSession);
+  const transferModalQuizRef = useRef(transferModalQuiz);
+  const showPhoneStorageModalRef = useRef(showPhoneStorageModal);
+  const showDownloadAppModalRef = useRef(showDownloadAppModal);
+  const showLogoutConfirmRef = useRef(showLogoutConfirm);
+  const quizToDeleteRef = useRef(quizToDelete);
+  const showPasteAreaRef = useRef(showPasteArea);
+  const showJsonInfoRef = useRef(showJsonInfo);
+  const showTopMenuRef = useRef(showTopMenu);
+  const activeMenuQuizIdRef = useRef(activeMenuQuizId);
+  const editingQuizIdRef = useRef(editingQuizId);
+  const lastBackPressTime = useRef<number>(0);
+
+  useEffect(() => { appStateRef.current = appState; }, [appState]);
+  useEffect(() => { tabRef.current = tab; }, [tab]);
+  useEffect(() => { selectedCategoryFilterRef.current = selectedCategoryFilter; }, [selectedCategoryFilter]);
+  useEffect(() => { selectedSubCategoryFilterRef.current = selectedSubCategoryFilter; }, [selectedSubCategoryFilter]);
+  useEffect(() => { showAiExplainModalRef.current = showAiExplainModal; }, [showAiExplainModal]);
+  useEffect(() => { pendingQuizToStartRef.current = pendingQuizToStart; }, [pendingQuizToStart]);
+  useEffect(() => { resumeModalSessionRef.current = resumeModalSession; }, [resumeModalSession]);
+  useEffect(() => { transferModalQuizRef.current = transferModalQuiz; }, [transferModalQuiz]);
+  useEffect(() => { showPhoneStorageModalRef.current = showPhoneStorageModal; }, [showPhoneStorageModal]);
+  useEffect(() => { showDownloadAppModalRef.current = showDownloadAppModal; }, [showDownloadAppModal]);
+  useEffect(() => { showLogoutConfirmRef.current = showLogoutConfirm; }, [showLogoutConfirm]);
+  useEffect(() => { quizToDeleteRef.current = quizToDelete; }, [quizToDelete]);
+  useEffect(() => { showPasteAreaRef.current = showPasteArea; }, [showPasteArea]);
+  useEffect(() => { showJsonInfoRef.current = showJsonInfo; }, [showJsonInfo]);
+  useEffect(() => { showTopMenuRef.current = showTopMenu; }, [showTopMenu]);
+  useEffect(() => { activeMenuQuizIdRef.current = activeMenuQuizId; }, [activeMenuQuizId]);
+  useEffect(() => { editingQuizIdRef.current = editingQuizId; }, [editingQuizId]);
+
+  // Push history state whenever any modal or overlay opens so system back closes it
   useEffect(() => {
+    if (
+      showAiExplainModal ||
+      pendingQuizToStart ||
+      resumeModalSession ||
+      transferModalQuiz ||
+      showPhoneStorageModal ||
+      showDownloadAppModal ||
+      showLogoutConfirm ||
+      quizToDelete ||
+      showPasteArea ||
+      showJsonInfo ||
+      showTopMenu ||
+      activeMenuQuizId
+    ) {
+      window.history.pushState({ app: 'quizflash', modal: true }, '');
+    }
+  }, [
+    showAiExplainModal,
+    pendingQuizToStart,
+    resumeModalSession,
+    transferModalQuiz,
+    showPhoneStorageModal,
+    showDownloadAppModal,
+    showLogoutConfirm,
+    quizToDelete,
+    showPasteArea,
+    showJsonInfo,
+    showTopMenu,
+    activeMenuQuizId
+  ]);
+
+  // Push history state when category filter is selected
+  useEffect(() => {
+    if (selectedSubCategoryFilter !== 'ALL' || selectedCategoryFilter !== 'ALL') {
+      window.history.pushState({ app: 'quizflash', filter: true }, '');
+    }
+  }, [selectedCategoryFilter, selectedSubCategoryFilter]);
+
+  // Push history state when entering results screen
+  useEffect(() => {
+    if (appState === 'RESULTS') {
+      window.history.pushState({ app: 'quizflash', screen: 'RESULTS' }, '');
+    }
+  }, [appState]);
+
+  // System Back button listener
+  useEffect(() => {
+    // Initial root history state
+    if (!window.history.state) {
+      window.history.replaceState({ app: 'quizflash', level: 0 }, '');
+    }
+
     const handlePopState = (e: PopStateEvent) => {
-      if (e.state) {
-        setTab(e.state.tab);
-        setAppState(e.state.appState);
-      } else {
+      // 1. If currently inside active Quiz progress, Quiz.tsx handles its internal back dialog
+      if (appStateRef.current === 'QUIZ_IN_PROGRESS') {
+        return;
+      }
+
+      // 2. Check and close any open modals/overlays first
+      if (showAiExplainModalRef.current) {
+        setShowAiExplainModal(false);
+        return;
+      }
+      if (pendingQuizToStartRef.current) {
+        setPendingQuizToStart(null);
+        return;
+      }
+      if (resumeModalSessionRef.current) {
+        setResumeModalSession(null);
+        return;
+      }
+      if (transferModalQuizRef.current) {
+        setTransferModalQuiz(null);
+        return;
+      }
+      if (showPhoneStorageModalRef.current) {
+        setShowPhoneStorageModal(false);
+        return;
+      }
+      if (showDownloadAppModalRef.current) {
+        setShowDownloadAppModal(false);
+        return;
+      }
+      if (showLogoutConfirmRef.current) {
+        setShowLogoutConfirm(false);
+        return;
+      }
+      if (quizToDeleteRef.current) {
+        setQuizToDelete(null);
+        return;
+      }
+      if (showPasteAreaRef.current) {
+        setShowPasteArea(false);
+        return;
+      }
+      if (showJsonInfoRef.current) {
+        setShowJsonInfo(false);
+        return;
+      }
+      if (showTopMenuRef.current) {
+        setShowTopMenu(false);
+        return;
+      }
+      if (activeMenuQuizIdRef.current) {
+        setActiveMenuQuizId(null);
+        return;
+      }
+      if (editingQuizIdRef.current) {
+        setEditingQuizId(null);
+        return;
+      }
+
+      // 3. If on RESULTS screen (Test Summary), return to HOME
+      if (appStateRef.current === 'RESULTS') {
+        restart();
         setTab('HOME');
+        return;
+      }
+
+      // 4. If in processing/generating screen, return to IDLE
+      if (appStateRef.current === 'PROCESSING_PDF' || appStateRef.current === 'GENERATING_QUIZ') {
         setAppState('IDLE');
+        return;
+      }
+
+      // 5. If in Subcategory filter, return to Category
+      if (selectedSubCategoryFilterRef.current !== 'ALL') {
+        setSelectedSubCategoryFilter('ALL');
+        return;
+      }
+
+      // 6. If in Category filter, return to All Categories
+      if (selectedCategoryFilterRef.current !== 'ALL') {
+        setSelectedCategoryFilter('ALL');
+        return;
+      }
+
+      // 7. If in another tab (Library, Vault, Rank, Forge, Admin, Settings), return to Home tab
+      if (tabRef.current !== 'HOME') {
+        setTab('HOME');
+        return;
+      }
+
+      // 8. If already on Home tab with nothing open: Double-back to exit prevention
+      const now = Date.now();
+      if (now - lastBackPressTime.current > 2000) {
+        lastBackPressTime.current = now;
+        window.history.pushState({ app: 'quizflash', level: 0 }, '');
+        setSuccessMessage('Press back again to exit');
+        setTimeout(() => setSuccessMessage(null), 2000);
       }
     };
+
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
