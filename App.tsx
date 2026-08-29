@@ -1866,79 +1866,102 @@ const App: React.FC = () => {
               </div>
             )}
             {tab === 'AI_PROMPT' && (
-              <div className="animate-in slide-in-from-bottom-4 pt-2">
-                <h3 className="text-[11px] font-black mb-3 flex items-center gap-1.5 uppercase tracking-wider text-slate-400">Knowledge Architect <Dna className="text-blue-600" size={13} /></h3>
-                
-                {/* Generation Language Selector */}
-                <div className="mb-3 animate-in slide-in-from-top duration-300">
-                   <div className={`p-2.5 rounded-xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-                      <div className="flex items-center justify-between mb-2 px-1">
-                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                           <Globe size={9} className="text-blue-500" /> Generation Language
-                         </label>
-                         <span className="text-[7px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.2 rounded-md">AI Active</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                         {['English', 'Hindi', 'Khortha', 'Bengali', 'Mixed (Hinglish)'].map(lang => (
-                            <button
-                               key={lang}
-                               onClick={() => setAiLanguage(lang)}
-                               className={`px-2.5 py-1 rounded-lg text-[8.5px] font-bold uppercase tracking-wider transition-all border ${
-                                 aiLanguage === lang 
-                                   ? 'bg-blue-600 text-white border-blue-500 shadow-2xs' 
-                                   : isDarkMode 
-                                     ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600' 
-                                     : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                               }`}
-                            >
-                               {lang}
-                            </button>
-                         ))}
-                      </div>
-                   </div>
-                </div>
+              <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6 sm:space-y-8 max-w-2xl mx-auto pt-4 sm:pt-8">
+                 
+                 <div className="text-center space-y-2 mb-6 sm:mb-8">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-[2rem] bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center mx-auto shadow-xl shadow-blue-500/20 mb-4 sm:mb-6">
+                       <Sparkles size={36} className="sm:w-10 sm:h-10" />
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-black tracking-tight dark:text-white uppercase">AI Quiz Forge</h2>
+                    <p className="text-xs sm:text-sm font-bold tracking-wide text-slate-500 dark:text-slate-400">Transform any topic into an interactive learning session instantly.</p>
+                 </div>
 
-                {/* Generation Difficulty Selector */}
-                <div className="mb-3 animate-in slide-in-from-top duration-300">
-                   <div className={`p-2.5 rounded-xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-                      <div className="flex items-center justify-between mb-2 px-1">
-                         <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                           <ShieldCheck size={9} className="text-emerald-500" /> Quiz Difficulty Level
-                         </label>
-                         <span className="text-[7px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.2 rounded-md capitalize">{quizDifficulty}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1.5">
-                         {[
-                           { id: 'easy', label: 'Easy', desc: 'Basic Recall' },
-                           { id: 'medium', label: 'Medium', desc: 'Comprehension' },
-                           { id: 'hard', label: 'Hard', desc: 'Analysis & App' }
-                         ].map(diff => (
-                            <button
-                               key={diff.id}
-                               onClick={() => setQuizDifficulty(diff.id as any)}
-                               className={`p-2 rounded-lg text-left transition-all border ${
-                                 quizDifficulty === diff.id 
-                                   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-500 shadow-2xs' 
-                                   : isDarkMode 
-                                     ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600' 
-                                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'
-                               }`}
-                            >
-                               <div className="text-[8.5px] font-black uppercase tracking-wider">{diff.label}</div>
-                               <div className={`text-[6.5px] mt-0.5 opacity-80 ${quizDifficulty === diff.id ? 'text-blue-100' : 'text-slate-400'}`}>{diff.desc}</div>
-                            </button>
-                         ))}
-                      </div>
-                   </div>
-                </div>
+                 <div className={`p-6 sm:p-8 rounded-[2.5rem] sm:rounded-[3rem] border shadow-2xl ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
+                    <div className="space-y-8 sm:space-y-10">
+                       
+                       {/* Generation Language Selector */}
+                       <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                             <label className="text-xs sm:text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                               <Globe size={16} className="text-blue-500" /> Language
+                             </label>
+                             <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md">AI Active</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2 sm:gap-3">
+                             {['English', 'Hindi', 'Mixed (Hinglish)'].map(lang => (
+                                <button
+                                   key={lang}
+                                   onClick={() => setAiLanguage(lang)}
+                                   className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-[1.25rem] text-xs sm:text-sm font-bold transition-all border-2 ${
+                                     aiLanguage === lang 
+                                       ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-500 shadow-sm' 
+                                       : isDarkMode 
+                                         ? 'bg-transparent text-slate-400 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50' 
+                                         : 'bg-transparent text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                   }`}
+                                >
+                                   {lang}
+                                </button>
+                             ))}
+                          </div>
+                       </div>
 
-                <div className={`p-3.5 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'}`}>
-                   <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Topic for Dynamic Learning</label>
-                      <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="e.g. History of Rome, React Hooks, Baking science..." className={`w-full h-24 p-2.5 border rounded-xl focus:ring-1 focus:ring-blue-500 outline-none text-xs font-medium transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`} />
-                   </div>
-                   <button onClick={handleAiQuizGenerate} disabled={!aiPrompt.trim()} className="w-full mt-3 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[8.5px] uppercase tracking-wider shadow-md active:scale-95 transition-all">Launch Session</button>
-                </div>
+                       {/* Generation Difficulty Selector */}
+                       <div className="space-y-4">
+                          <label className="text-xs sm:text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <ShieldCheck size={16} className="text-emerald-500" /> Difficulty Level
+                          </label>
+                          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                             {[
+                               { id: 'easy', label: 'Easy', desc: 'Basic recall' },
+                               { id: 'medium', label: 'Medium', desc: 'Understand' },
+                               { id: 'hard', label: 'Hard', desc: 'Deep analysis' }
+                             ].map(diff => (
+                                <button
+                                   key={diff.id}
+                                   onClick={() => setQuizDifficulty(diff.id as any)}
+                                   className={`p-2.5 sm:p-5 rounded-2xl sm:rounded-3xl text-center sm:text-left transition-all border-2 ${
+                                     quizDifficulty === diff.id 
+                                       ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-500 shadow-sm' 
+                                       : isDarkMode 
+                                         ? 'bg-transparent text-slate-400 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50' 
+                                         : 'bg-transparent text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                   }`}
+                                >
+                                   <div className="text-[10px] sm:text-sm font-black uppercase tracking-wider mb-0.5 sm:mb-1.5">{diff.label}</div>
+                                   <div className={`text-[8px] sm:text-xs font-medium leading-tight sm:leading-relaxed ${quizDifficulty === diff.id ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-slate-500'}`}>{diff.desc}</div>
+                                </button>
+                             ))}
+                          </div>
+                       </div>
+
+                       {/* Topic Input */}
+                       <div className="space-y-4">
+                          <label className="text-xs sm:text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                             <Sparkles size={16} className="text-indigo-500" /> Topic or Material
+                          </label>
+                          <textarea 
+                             value={aiPrompt} 
+                             onChange={(e) => setAiPrompt(e.target.value)} 
+                             placeholder="e.g. History of the Roman Empire, Basics of React Hooks, Solar System..." 
+                             className={`w-full h-32 sm:h-40 p-5 sm:p-6 border-2 rounded-[2rem] focus:ring-4 focus:ring-blue-500/20 outline-none text-sm sm:text-base font-medium transition-all resize-none ${
+                               isDarkMode 
+                                 ? 'bg-slate-950 border-slate-800 text-white focus:border-blue-500 placeholder-slate-600' 
+                                 : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-500 placeholder-slate-400'
+                             }`} 
+                          />
+                       </div>
+
+                       <button 
+                          onClick={handleAiQuizGenerate} 
+                          disabled={!aiPrompt.trim()} 
+                          className="w-full py-4 sm:py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-xs sm:text-sm uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-3"
+                       >
+                          <Zap size={18} fill="currentColor" className={aiPrompt.trim() ? "text-amber-400" : ""} />
+                          Launch Forge Session
+                       </button>
+                    </div>
+                 </div>
               </div>
             )}
 
