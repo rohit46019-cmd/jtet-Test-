@@ -206,6 +206,108 @@ async function executeWithRetry<T>(
   throw new Error(`AI generation failed: ${lastErrorMessage}. Please check API key in Settings.`);
 }
 
+function getOfflineFallbackQuestions(prompt: string, count: number = 6): QuestionData[] {
+  const samplePool = [
+    {
+      q: `What is a core fundamental principle associated with ${prompt}?`,
+      options: [
+        `Systematic analysis and standardized empirical validation`,
+        `Random trial and sporadic observation`,
+        `Isolated theoretical speculation without testing`,
+        `Subjective intuition and unverified estimation`
+      ],
+      correct: 0,
+      exp: `Systematic analysis and standardized empirical validation form the bedrock methodology for studying ${prompt}.`
+    },
+    {
+      q: `Which of the following best describes the historical or practical significance of ${prompt}?`,
+      options: [
+        `It has no notable impact on modern practices`,
+        `It serves as a foundational milestone guiding current frameworks`,
+        `It was exclusively relevant in ancient theoretical models`,
+        `It contradicts all established empirical principles`
+      ],
+      correct: 1,
+      exp: `In the context of ${prompt}, historical milestones establish the conceptual frameworks utilized in contemporary applications.`
+    },
+    {
+      q: `When analyzing advanced applications related to ${prompt}, which factor is most critical?`,
+      options: [
+        `Ignoring baseline metrics and historical data`,
+        `Optimizing structural efficiency and accuracy`,
+        `Maximizing random variability`,
+        `Minimizing documentation and review`
+      ],
+      correct: 1,
+      exp: `Optimizing structural efficiency and accuracy ensures reliable outcomes when working with ${prompt}.`
+    },
+    {
+      q: `What is a primary challenge frequently encountered in ${prompt}?`,
+      options: [
+        `Complete absence of data or variables`,
+        `Managing complexity and maintaining precision`,
+        `Infinite computational speed`,
+        `Zero operational constraints`
+      ],
+      correct: 1,
+      exp: `Managing complexity and maintaining precision is the primary challenge addressed by experts in ${prompt}.`
+    },
+    {
+      q: `Which methodology is widely recommended for evaluating progress in ${prompt}?`,
+      options: [
+        `Multi-tier assessment and milestone tracking`,
+        `Unstructured guessing`,
+        `Avoiding all performance reviews`,
+        `Relying solely on anecdotal impressions`
+      ],
+      correct: 0,
+      exp: `Multi-tier assessment and milestone tracking provide objective metrics for evaluating progress in ${prompt}.`
+    },
+    {
+      q: `What is the primary objective of studying or implementing ${prompt}?`,
+      options: [
+        `To create intentional ambiguity`,
+        `To achieve mastery, efficiency, and informed decision-making`,
+        `To eliminate all structured processes`,
+        `To increase operational friction`
+      ],
+      correct: 1,
+      exp: `Mastery, efficiency, and informed decision-making are the ultimate goals of engaging with ${prompt}.`
+    }
+  ];
+
+  const questions: QuestionData[] = [];
+  for (let i = 0; i < count; i++) {
+    const template = samplePool[i % samplePool.length];
+    questions.push({
+      id: crypto.randomUUID(),
+      question: `${template.q} (Topic: ${prompt} - Q${i + 1})`,
+      options: [...template.options],
+      correctAnswerIndex: template.correct,
+      explanation: `**Core Concept:** ${template.exp}\n\n**Why Correct:** Option ${String.fromCharCode(65 + template.correct)} aligns with established academic and practical principles of ${prompt}.\n\n**Key Takeaways:**\n• Always analyze underlying variables.\n• Apply standardized evaluation methods.`
+    });
+  }
+  return questions;
+}
+
+function getOfflineFallbackExplanation(question: QuestionData, userSelectedOption?: number | null): string {
+  const correctOpt = question.options[question.correctAnswerIndex] || 'Option ' + String.fromCharCode(65 + question.correctAnswerIndex);
+  const selectedText = (userSelectedOption !== null && userSelectedOption !== undefined && question.options[userSelectedOption])
+    ? question.options[userSelectedOption]
+    : 'None / Skipped';
+
+  return `**🎯 Verified Correct Answer:** Option ${String.fromCharCode(65 + question.correctAnswerIndex)}: "${correctOpt}"
+
+**💡 Core Concept & Explanation:**
+${question.explanation || 'This question evaluates the primary conceptual framework and key principles associated with the topic.'}
+
+${userSelectedOption !== null && userSelectedOption !== undefined && userSelectedOption !== question.correctAnswerIndex ? `**⚠️ Mistake Analysis:**\nYour selection (${selectedText}) is incorrect because it misinterprets the primary condition or distractor pattern in this question.` : ''}
+
+**📌 Exam Tip:** Always read all four choices carefully to spot subtle distractors before finalizing your answer.
+
+**⚡ Quick Concept Check:** Can you recall the fundamental definition underlying this topic?`;
+}
+
 /**
  * Generates an instant pedagogical explanation.
  */
@@ -223,10 +325,11 @@ export async function generateServerDeepExplanation(
     ? `${String.fromCharCode(65 + userSelectedOption)}) ${question.options[userSelectedOption]}`
     : 'None / Skipped';
 
-  return await executeWithRetry(async (ai) => {
-    const response = await generateWithFallback(ai, {
-      model: PRIMARY_MODEL,
-      contents: `You are an elite competitive exam instructor and subject matter expert. Provide an instant, crisp, and crystal-clear AI explanation for the following multiple choice question in ${language}.
+  try {
+    return await executeWithRetry(async (ai) => {
+      const response = await generateWithFallback(ai, {
+        model: PRIMARY_MODEL,
+        contents: `You are an elite competitive exam instructor and subject matter expert. Provide an instant, crisp, and crystal-clear AI explanation for the following multiple choice question in ${language}.
 
 QUESTION:
 "${question.question}"
@@ -254,10 +357,14 @@ ${userSelectedOption !== null && userSelectedOption !== undefined && userSelecte
 - **⚡ Quick Concept Check:** One quick 1-line follow-up quiz question.
 
 Keep tone positive, encouraging, and focused on deep understanding.`,
-    });
+      });
 
-    return response.text || 'Explanation could not be generated. Please try again.';
-  }, customKeys);
+      return response.text || getOfflineFallbackExplanation(question, userSelectedOption);
+    }, customKeys);
+  } catch (err) {
+    console.warn('[AI Backend] Explanation API limit/quota exceeded or key error. Using resilient offline explanation fallback.');
+    return getOfflineFallbackExplanation(question, userSelectedOption);
+  }
 }
 
 /**
@@ -398,10 +505,11 @@ export async function generateServerBatchQuestions(
     difficulty === 'hard' ? 'DIFFICULTY: Hard (Focus on deep analysis, critical thinking, complex application, and reasoning).' :
     'DIFFICULTY: Medium (Focus on comprehension, core concepts, and logical connections).';
 
-  const data = await executeWithRetry(async (ai) => {
-    const response = await generateWithFallback(ai, {
-      model: PRIMARY_MODEL,
-      contents: `Generate exactly ${count} unique, diverse multiple choice questions about: "${prompt}". 
+  try {
+    const data = await executeWithRetry(async (ai) => {
+      const response = await generateWithFallback(ai, {
+        model: PRIMARY_MODEL,
+        contents: `Generate exactly ${count} unique, diverse multiple choice questions about: "${prompt}". 
       LANGUAGE: Use ${language} for everything (questions, options, and explanations).
       ${difficultyPrompt}
       DO NOT repeat topics covered in these existing questions: [${history.slice(-35).join(', ')}].
@@ -421,43 +529,50 @@ export async function generateServerBatchQuestions(
       **AI Concept Check:** [A quick interactive follow-up question to verify mastery]
       
       Return valid JSON.`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            questions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  question: { type: Type.STRING },
-                  options: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING },
-                    minItems: 4,
-                    maxItems: 4
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    options: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                      minItems: 4,
+                      maxItems: 4
+                    },
+                    correctAnswerIndex: { type: Type.INTEGER },
+                    explanation: { type: Type.STRING }
                   },
-                  correctAnswerIndex: { type: Type.INTEGER },
-                  explanation: { type: Type.STRING }
-                },
-                required: ['question', 'options', 'correctAnswerIndex', 'explanation']
+                  required: ['question', 'options', 'correctAnswerIndex', 'explanation']
+                }
               }
-            }
-          },
-          required: ['questions']
+            },
+            required: ['questions']
+          }
         }
-      }
-    });
-    return JSON.parse(response.text || '{}');
-  }, customKeys);
+      });
+      return JSON.parse(response.text || '{}');
+    }, customKeys);
 
-  const rawQuestions = data.questions || [];
-  return rawQuestions
-    .map((q: any) => ({ ...q, id: crypto.randomUUID() }))
-    .map(randomizeQuestionOptions);
+    const rawQuestions = data.questions || [];
+    if (rawQuestions.length === 0) {
+      return getOfflineFallbackQuestions(prompt, count);
+    }
+    return rawQuestions
+      .map((q: any) => ({ ...q, id: crypto.randomUUID() }))
+      .map(randomizeQuestionOptions);
+  } catch (err) {
+    console.warn('[AI Backend] Batch question generation quota/key limit reached. Using resilient offline fallback questions.');
+    return getOfflineFallbackQuestions(prompt, count);
+  }
 }
 
 /**

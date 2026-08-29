@@ -35,6 +35,137 @@ interface LocalData {
   settings: { [key: string]: any };
 }
 
+const DEFAULT_STARTER_CATEGORIES = [
+  {
+    id: 'cat_gk',
+    name: 'General Knowledge & Current Affairs',
+    parentId: null,
+    thumbnailUrl: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?w=600&auto=format&fit=crop&q=80',
+    color: '#3b82f6',
+    createdAt: 1700000000000
+  },
+  {
+    id: 'sub_gk_history',
+    name: 'Indian & World History',
+    parentId: 'cat_gk',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?w=600&auto=format&fit=crop&q=80',
+    color: '#2563eb',
+    createdAt: 1700000000001
+  },
+  {
+    id: 'sub_gk_polity',
+    name: 'Indian Polity & Constitution',
+    parentId: 'cat_gk',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
+    color: '#1d4ed8',
+    createdAt: 1700000000002
+  },
+  {
+    id: 'sub_gk_geography',
+    name: 'Geography & Environment',
+    parentId: 'cat_gk',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&auto=format&fit=crop&q=80',
+    color: '#1e40af',
+    createdAt: 1700000000003
+  },
+  {
+    id: 'cat_science',
+    name: 'Science & Technology',
+    parentId: null,
+    thumbnailUrl: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=600&auto=format&fit=crop&q=80',
+    color: '#10b981',
+    createdAt: 1700000000010
+  },
+  {
+    id: 'sub_sci_physics',
+    name: 'Physics',
+    parentId: 'cat_science',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=600&auto=format&fit=crop&q=80',
+    color: '#059669',
+    createdAt: 1700000000011
+  },
+  {
+    id: 'sub_sci_chemistry',
+    name: 'Chemistry',
+    parentId: 'cat_science',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=600&auto=format&fit=crop&q=80',
+    color: '#047857',
+    createdAt: 1700000000012
+  },
+  {
+    id: 'sub_sci_biology',
+    name: 'Biology & Health',
+    parentId: 'cat_science',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1530026405186-ed1f139313f8?w=600&auto=format&fit=crop&q=80',
+    color: '#065f46',
+    createdAt: 1700000000013
+  },
+  {
+    id: 'sub_sci_cs',
+    name: 'Computer Science & AI',
+    parentId: 'cat_science',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&auto=format&fit=crop&q=80',
+    color: '#0f766e',
+    createdAt: 1700000000014
+  },
+  {
+    id: 'cat_aptitude',
+    name: 'Mathematics & Reasoning',
+    parentId: null,
+    thumbnailUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=600&auto=format&fit=crop&q=80',
+    color: '#8b5cf6',
+    createdAt: 1700000000020
+  },
+  {
+    id: 'sub_apt_quant',
+    name: 'Quantitative Aptitude',
+    parentId: 'cat_aptitude',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=600&auto=format&fit=crop&q=80',
+    color: '#7c3aed',
+    createdAt: 1700000000021
+  },
+  {
+    id: 'sub_apt_reasoning',
+    name: 'Logical Reasoning',
+    parentId: 'cat_aptitude',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?w=600&auto=format&fit=crop&q=80',
+    color: '#6d28d9',
+    createdAt: 1700000000022
+  },
+  {
+    id: 'cat_exams',
+    name: 'Competitive Exams Prep',
+    parentId: null,
+    thumbnailUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&auto=format&fit=crop&q=80',
+    color: '#f59e0b',
+    createdAt: 1700000000030
+  },
+  {
+    id: 'sub_exam_upsc',
+    name: 'UPSC & Civil Services',
+    parentId: 'cat_exams',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=600&auto=format&fit=crop&q=80',
+    color: '#d97706',
+    createdAt: 1700000000031
+  },
+  {
+    id: 'sub_exam_ssc',
+    name: 'SSC CGL / CHSL',
+    parentId: 'cat_exams',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=600&auto=format&fit=crop&q=80',
+    color: '#b45309',
+    createdAt: 1700000000032
+  },
+  {
+    id: 'sub_exam_banking',
+    name: 'Banking & IBPS / SBI',
+    parentId: 'cat_exams',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1601597111158-2fceff292cdc?w=600&auto=format&fit=crop&q=80',
+    color: '#92400e',
+    createdAt: 1700000000033
+  }
+];
+
 function loadLocalData(): LocalData {
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -44,6 +175,9 @@ function loadLocalData(): LocalData {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       if (!parsed.reports) parsed.reports = [];
+      if (!parsed.categories || parsed.categories.length === 0) {
+        parsed.categories = [...DEFAULT_STARTER_CATEGORIES];
+      }
       return parsed;
     }
   } catch (e) {
@@ -51,7 +185,7 @@ function loadLocalData(): LocalData {
   }
   return {
     quizzes: [],
-    categories: [],
+    categories: [...DEFAULT_STARTER_CATEGORIES],
     users: [],
     reports: [],
     settings: {
@@ -319,17 +453,27 @@ app.get('/api/categories', async (req, res) => {
     const database = await connectToMongoDB();
     if (database) {
       const categories = await database.collection('categories').find({}).toArray();
-      const formatted = categories.map((c: any) => ({
+      let formatted = categories.map((c: any) => ({
         ...c,
         id: c.id || c._id.toString(),
         _id: c._id.toString()
       }));
+      if (formatted.length === 0) {
+        // Seed default categories into MongoDB
+        await database.collection('categories').insertMany(DEFAULT_STARTER_CATEGORIES.map(c => ({ ...c })));
+        formatted = [...DEFAULT_STARTER_CATEGORIES];
+      }
       localStore.categories = formatted;
       saveLocalData();
       return res.json(formatted);
     }
   } catch (err) {
     console.warn('Mongo fetch categories fallback to local:', err);
+  }
+
+  if (!localStore.categories || localStore.categories.length === 0) {
+    localStore.categories = [...DEFAULT_STARTER_CATEGORIES];
+    saveLocalData();
   }
 
   res.json(localStore.categories);

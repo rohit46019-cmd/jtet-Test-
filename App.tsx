@@ -1845,9 +1845,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {tab === 'ADMIN' && (
-              <AdminPanel />
-            )}
+
 
             {tab === 'AI_PROMPT' && (
               <div className="animate-in slide-in-from-bottom-4 pt-2">
@@ -1927,8 +1925,8 @@ const App: React.FC = () => {
             )}
 
             {tab === 'LIBRARY' && (
-               <div className="animate-in slide-in-from-bottom-4 pt-2">
-                  <div className="flex flex-col gap-3 mb-4">
+               <div className="animate-in slide-in-from-bottom-4 pt-0">
+                  <div className="flex flex-col gap-2 mb-2">
                     {/* Dynamic Real-time Test Search Bar - Placed at the very top */}
                     <div className="relative w-full">
                       <input
@@ -1958,10 +1956,10 @@ const App: React.FC = () => {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1">
                       <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Learning Vault (Practice & Tests)</h3>
                       {/* Main Category Filter Pills */}
-                      <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 custom-scrollbar">
+                      <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1.5 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         <button 
                           onClick={() => { setSelectedCategoryFilter('ALL'); setSelectedSubCategoryFilter('ALL'); }} 
-                          className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-2xs' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-md' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
                         >
                           All Categories
                         </button>
@@ -1969,7 +1967,7 @@ const App: React.FC = () => {
                           <button 
                             key={c.id} 
                             onClick={() => { setSelectedCategoryFilter(c.id); setSelectedSubCategoryFilter('ALL'); }} 
-                            className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-blue-600 text-white shadow-2xs' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                            className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-blue-600 text-white shadow-md' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
                           >
                             {c.name}
                           </button>
@@ -1979,11 +1977,11 @@ const App: React.FC = () => {
 
                     {/* Sub-Category Filter Pills if Main Category selected */}
                     {selectedCategoryFilter !== 'ALL' && categories.filter(c => c.parentId === selectedCategoryFilter).length > 0 && (
-                      <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar border-t border-slate-100 dark:border-slate-800 pt-2">
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mr-1">Subcategories:</span>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pt-1">
+
                         <button 
                           onClick={() => setSelectedSubCategoryFilter('ALL')} 
-                          className={`px-2 py-0.5 rounded text-[7.5px] font-bold transition-all whitespace-nowrap ${selectedSubCategoryFilter === 'ALL' ? 'bg-blue-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-extrabold transition-all whitespace-nowrap ${selectedSubCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-xs' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
                         >
                           All
                         </button>
@@ -1991,7 +1989,7 @@ const App: React.FC = () => {
                           <button 
                             key={sub.id} 
                             onClick={() => setSelectedSubCategoryFilter(sub.id)} 
-                            className={`px-2 py-0.5 rounded text-[7.5px] font-bold transition-all whitespace-nowrap ${selectedSubCategoryFilter === sub.id ? 'bg-blue-600 text-white' : isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                            className={`px-3 py-1 rounded-lg text-[10px] font-extrabold transition-all whitespace-nowrap ${selectedSubCategoryFilter === sub.id ? 'bg-blue-600 text-white shadow-xs' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
                           >
                             {sub.name}
                           </button>
@@ -2667,7 +2665,7 @@ const App: React.FC = () => {
                      </div>
                   </div>
 
-                  <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                   <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
                      <div className="flex items-start gap-4 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40">
                         <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
                         <div>
@@ -2680,6 +2678,18 @@ const App: React.FC = () => {
                   </div>
                </div>
             </div>
+          </div>
+        )}
+
+        {tab === 'ADMIN' && appState === 'IDLE' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4">
+            <AdminPanel 
+              categories={categories}
+              onCategoriesUpdated={(updatedCats) => {
+                setCategories(updatedCats);
+                localStorage.setItem('qf_categories', JSON.stringify(updatedCats));
+              }}
+            />
           </div>
         )}
       </main>
