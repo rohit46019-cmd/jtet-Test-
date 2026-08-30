@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { User, Camera, Save, X, Edit2, Loader2, CheckCircle2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { User, Camera, Save, X, Edit2, Loader2, CheckCircle2, Upload } from 'lucide-react';
 
 interface UserProfileSettingsProps {
   user: any;
@@ -13,6 +13,7 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ user, 
   const [photoUrl, setPhotoUrl] = useState(user?.photoURL || '');
   const [isSaving, setIsSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -27,6 +28,46 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ user, 
     setName(user?.displayName || '');
     setPhotoUrl(user?.photoURL || '');
     setIsEditing(true);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Compress image to a smaller base64 string
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxSize = 200; // Small size for profile pictures
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round(height * (maxSize / width));
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round(width * (maxSize / height));
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        setPhotoUrl(dataUrl);
+      };
+    };
   };
 
   if (!user) return null;
@@ -52,7 +93,10 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ user, 
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
         {/* Avatar */}
         <div className="relative shrink-0">
-          <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 border-4 border-white dark:border-slate-800 shadow-xl overflow-hidden flex items-center justify-center">
+          <div 
+            onClick={() => isEditing && fileInputRef.current?.click()}
+            className={`w-24 h-24 rounded-[2rem] bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 border-4 border-white dark:border-slate-800 shadow-xl overflow-hidden flex items-center justify-center ${isEditing ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+          >
              {(isEditing ? photoUrl : user?.photoURL) ? (
                 <img src={isEditing ? photoUrl : user.photoURL} alt="Profile" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
              ) : (
@@ -60,10 +104,20 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ user, 
              )}
           </div>
           {isEditing && (
-            <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2 rounded-xl shadow-lg border-2 border-white dark:border-slate-800">
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2 rounded-xl shadow-lg border-2 border-white dark:border-slate-800 cursor-pointer hover:scale-105 transition-transform"
+            >
               <Camera size={14} />
             </div>
           )}
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            accept="image/*" 
+            className="hidden" 
+          />
         </div>
 
         {/* Info or Edit Form */}
@@ -82,13 +136,21 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({ user, 
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Profile Photo URL</label>
-                <input 
-                  type="text" 
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  placeholder="https://example.com/photo.jpg"
-                  className={`w-full px-4 py-3 rounded-2xl text-sm border transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-500'}`}
-                />
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    placeholder="https://example.com/photo.jpg"
+                    className={`w-full px-4 py-3 rounded-2xl text-sm border transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-500'}`}
+                  />
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  >
+                    <Upload size={14} /> <span className="hidden sm:inline">Upload</span>
+                  </button>
+                </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <button 
