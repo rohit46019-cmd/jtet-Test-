@@ -235,8 +235,8 @@ export const QuizConfigModal: React.FC<QuizConfigModalProps> = ({
                   <Shuffle size={15} />
                 </div>
                 <div className="text-left">
-                  <div className="font-extrabold text-xs">Shuffle Questions Order</div>
-                  <div className="text-[10px] text-slate-400 font-medium">Randomize question order before test starts</div>
+                  <div className="font-extrabold text-xs">Shuffle Questions & Options</div>
+                  <div className="text-[10px] text-slate-400 font-medium">Randomize question and options order before test starts</div>
                 </div>
               </div>
               <div className={`w-10 h-6 rounded-full transition-colors relative p-0.5 ${shuffleQuestions ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'}`}>

@@ -518,13 +518,13 @@ export async function generateServerBatchQuestions(
       ${difficultyPrompt}
       ${historyPrompt}
       
-      IMPORTANT EXPLANATION & CORRECTION INSTRUCTIONS:
-      Do NOT write long story-like or essay paragraphs.
-      The "explanation" for each question MUST be structured using bold titles, italic emphasis, and bullet points so it is easy & fast to read. 
-      If any answer choice represents a common misconception or incorrect trap, explicitly correct it and explain why the correct answer is right.
-      Include an **AI Follow-up Concept Check** question at the end of the explanation.
+      CRITICAL HIGHLIGHTING & EXPLANATION INSTRUCTIONS:
+      1. QUESTION TEXT HIGHLIGHTING: You MUST wrap the 1-2 most critical keywords in the question text with **bold** (e.g. "What is the **capital** of..."). If there are negative words like **NOT** or **INCORRECT**, bold them! Do this for EVERY question.
+      2. EXPLANATION STRUCTURE: Do NOT write long story-like or essay paragraphs. The "explanation" MUST be structured using bold titles, italic emphasis, and bullet points.
+      3. CORRECTIONS: If any answer choice represents a common misconception or incorrect trap, explicitly correct it and explain why the correct answer is right.
+      4. FOLLOW-UP: Include an **AI Follow-up Concept Check** question at the end of the explanation.
       
-      Follow this structure (translate headings to ${language}):
+      Follow this exact explanation structure (translate headings to ${language}):
       **Core Concept:** [Clear direct explanation]
       **Why Correct & Misconception Correction:** [Reasoning with *italic emphasis* and correcting incorrect traps]
       **Key Takeaways:**
@@ -633,21 +633,21 @@ export async function generateServerQuizFromText(
         LANGUAGE: Use ${language} for everything (questions, options, and explanations).
         ${difficultyPrompt}
         
-        IMPORTANT EXPLANATION & CORRECTION INSTRUCTIONS:
-        Do NOT write long story-like or essay paragraphs.
-        The "explanation" for each question MUST be structured using bold titles, italic emphasis, and bullet points so it is easy & fast to read.
-        If any answer choice represents a common misconception or incorrect trap, explicitly correct it and explain why the correct answer is right.
-        Include an **AI Follow-up Concept Check** question at the end of the explanation.
-        
-        Follow this structure (translate headings to ${language}):
-        **Core Concept:** [Clear direct explanation]
-        **Why Correct & Misconception Correction:** [Reasoning with *italic emphasis* and correcting incorrect traps]
-        **Key Takeaways:**
-        • [Point 1 with **bold keywords**]
-        • [Point 2 with **bold keywords**]
-        **AI Concept Check:** [A quick interactive follow-up question to verify mastery]
-        
-        Return valid JSON.
+        CRITICAL HIGHLIGHTING & EXPLANATION INSTRUCTIONS:
+      1. QUESTION TEXT HIGHLIGHTING: You MUST wrap the 1-2 most critical keywords in the question text with **bold** (e.g. "What is the **capital** of..."). If there are negative words like **NOT** or **INCORRECT**, bold them! Do this for EVERY question.
+      2. EXPLANATION STRUCTURE: Do NOT write long story-like or essay paragraphs. The "explanation" MUST be structured using bold titles, italic emphasis, and bullet points.
+      3. CORRECTIONS: If any answer choice represents a common misconception or incorrect trap, explicitly correct it and explain why the correct answer is right.
+      4. FOLLOW-UP: Include an **AI Follow-up Concept Check** question at the end of the explanation.
+      
+      Follow this exact explanation structure (translate headings to ${language}):
+      **Core Concept:** [Clear direct explanation]
+      **Why Correct & Misconception Correction:** [Reasoning with *italic emphasis* and correcting incorrect traps]
+      **Key Takeaways:**
+      • [Point 1 with **bold keywords**]
+      • [Point 2 with **bold keywords**]
+      **AI Concept Check:** [A quick interactive follow-up question to verify mastery]
+      
+      Return valid JSON.
         
         SEGMENT:
         ${textChunk}`,
