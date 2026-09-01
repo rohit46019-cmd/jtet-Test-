@@ -1564,18 +1564,18 @@ const App: React.FC = () => {
        {appState === 'IDLE' && (
           <div className="animate-in fade-in duration-500">
             {tab === 'HOME' && (
-              <div className="relative min-h-screen -mx-4 -mt-16 pt-20 px-4 pb-24 bg-[#0B0D17] overflow-hidden">
+              <div className="relative min-h-screen -mx-4 -mt-16 pt-20 px-4 pb-24 bg-gradient-to-b from-slate-900 to-indigo-950 overflow-hidden">
                 {/* Space Background Effects */}
                 <div className="absolute inset-0 z-0 pointer-events-none">
-                   <div className="absolute top-[5%] left-[5%] w-64 h-64 bg-purple-600/30 rounded-full blur-[90px]"></div>
-                   <div className="absolute top-[30%] right-[0%] w-72 h-72 bg-blue-600/20 rounded-full blur-[100px]"></div>
-                   <div className="absolute bottom-[20%] left-[10%] w-80 h-80 bg-fuchsia-600/10 rounded-full blur-[120px]"></div>
+                   <div className="absolute top-[5%] left-[5%] w-64 h-64 bg-purple-500/40 rounded-full blur-[90px]"></div>
+                   <div className="absolute top-[30%] right-[0%] w-72 h-72 bg-sky-500/30 rounded-full blur-[100px]"></div>
+                   <div className="absolute bottom-[20%] left-[10%] w-80 h-80 bg-rose-500/20 rounded-full blur-[120px]"></div>
                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.15)_1px,transparent_1px)] bg-[size:40px_40px] opacity-30"></div>
                 </div>
 
                 <div className="relative z-10 space-y-4 max-w-3xl mx-auto pt-2">
                   {/* Unified Hero Banner - Compact */}
-                  <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#2D1B6C] via-[#3C2792] to-[#5135B3] p-4 shadow-[0_0_30px_rgba(124,58,237,0.3)] border border-white/10 animate-in fade-in zoom-in duration-700">
+                  <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-4 shadow-[0_0_30px_rgba(124,58,237,0.3)] border border-white/10 animate-in fade-in zoom-in duration-700">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-fuchsia-500/30 rounded-full blur-3xl -mr-10 -mt-10" />
                     <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/30 rounded-full blur-3xl -ml-10 -mb-10" />
                     

@@ -1107,6 +1107,12 @@ const Quiz: React.FC<QuizProps> = ({
                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                       {mode === 'TEST' ? 'Green = Answered, Amber = Skipped, Gray = Not Visited' : 'Green = Correct, Red = Incorrect, Amber = Skipped, Gray = Not Visited'}
                     </p>
+                    {mode === 'PRACTICE' && (
+                      <div className="flex gap-4 mt-2">
+                        <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase">Correct: {quiz.questions.reduce((acc, _, i) => getQuestionStatus(i) === 'correct' ? acc + 1 : acc, 0)}</div>
+                        <div className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase">Wrong: {quiz.questions.reduce((acc, _, i) => getQuestionStatus(i) === 'incorrect' ? acc + 1 : acc, 0)}</div>
+                      </div>
+                    )}
                   </div>
                   <button 
                     onClick={() => { setShowPalette(false); setShowSubmitConfirm(true); }} 
