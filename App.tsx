@@ -1284,7 +1284,7 @@ const App: React.FC = () => {
 }`;
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#fcfdfe] text-slate-900'} antialiased overflow-x-hidden ${appState !== 'QUIZ_IN_PROGRESS' ? 'pt-14 sm:pt-16' : ''}`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 antialiased overflow-x-hidden ${appState !== 'QUIZ_IN_PROGRESS' ? 'pt-14 sm:pt-16' : ''}`}>
       {appState !== 'QUIZ_IN_PROGRESS' && (
         <header className="fixed top-0 left-0 right-0 z-[60] bg-slate-900 border-b-2 border-black px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 text-white shadow-lg backdrop-blur-md">
           <div className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onClick={restart}>
