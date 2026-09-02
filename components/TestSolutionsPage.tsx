@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, CheckCircle2, XCircle, Bookmark, Sparkles, 
-  ChevronLeft, ChevronRight, Check, X, Brain, Grid, RotateCcw, Clock
+  ChevronLeft, ChevronRight, Check, X, Brain, Grid, RotateCcw, Clock, Search, Filter
 } from 'lucide-react';
 import { Quiz, UserAnswer, Question, formatDuration } from '../types';
 
@@ -46,10 +46,77 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
 
+  // Filter & Search inside Question Navigator
+  const [navFilter, setNavFilter] = useState<'ALL' | 'CORRECT' | 'WRONG' | 'SKIPPED' | 'BOOKMARKED'>('ALL');
+  const [navSearch, setNavSearch] = useState('');
+
   // Reattempt mode state inside Review page
   const [isReattemptMode, setIsReattemptMode] = useState(false);
   // Map of questionIndex -> user's reattempt chosen option index
   const [reattemptChoices, setReattemptChoices] = useState<Record<number, number>>({});
+
+  const questionItems = quiz.questions.map((q, idx) => {
+    const userAnswer = results.find(a => 
+      a.questionIndex !== undefined ? a.questionIndex === idx : a.questionId === q.id
+    );
+    const selectedIdx = userAnswer ? userAnswer.selectedOptionIndex : null;
+    const timeSpent = userAnswer?.timeSpent || 0;
+    const isCorrect = selectedIdx === q.correctAnswerIndex;
+    const isSkipped = selectedIdx === null;
+    const isIncorrect = selectedIdx !== null && !isCorrect;
+    const isBookmarked = savedIds.has(q.id);
+
+    return {
+      q,
+      idx,
+      selectedIdx,
+      timeSpent,
+      isCorrect,
+      isSkipped,
+      isIncorrect,
+      isBookmarked
+    };
+  });
+
+  const currentItem = questionItems[currentQuestionIndex];
+
+  const handleNext = () => {
+    if (currentQuestionIndex < quiz.questions.length - 1) {
+      setSlideDirection(1);
+      setCurrentQuestionIndex(prev => prev + 1);
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentQuestionIndex > 0) {
+      setSlideDirection(-1);
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
+  };
+
+  // Keyboard navigation support (ArrowLeft / ArrowRight)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input field
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (e.key === 'ArrowRight') {
+        handleNext();
+      } else if (e.key === 'ArrowLeft') {
+        handlePrev();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentQuestionIndex, quiz.questions.length]);
+
+  if (!currentItem) return null;
+
+  const { q: currentQuestion, selectedIdx, timeSpent, isCorrect, isSkipped, isIncorrect } = currentItem;
+  const isSaved = savedIds.has(currentQuestion.id);
+
+  // Reattempt choice for current question
+  const reattemptChoice = reattemptChoices[currentQuestionIndex];
+  const hasReattempted = reattemptChoice !== undefined;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchEndX(null);
@@ -83,50 +150,156 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
     }));
   };
 
-  const questionItems = quiz.questions.map((q, idx) => {
-    const userAnswer = results.find(a => 
-      a.questionIndex !== undefined ? a.questionIndex === idx : a.questionId === q.id
-    );
-    const selectedIdx = userAnswer ? userAnswer.selectedOptionIndex : null;
-    const timeSpent = userAnswer?.timeSpent || 0;
-    const isCorrect = selectedIdx === q.correctAnswerIndex;
-    const isSkipped = selectedIdx === null;
-    const isIncorrect = selectedIdx !== null && !isCorrect;
+  // Filter question items for Navigator
+  const filteredNavItems = questionItems.filter(item => {
+    // Filter condition
+    if (navFilter === 'CORRECT' && !item.isCorrect) return false;
+    if (navFilter === 'WRONG' && !item.isIncorrect) return false;
+    if (navFilter === 'SKIPPED' && !item.isSkipped) return false;
+    if (navFilter === 'BOOKMARKED' && !item.isBookmarked) return false;
 
-    return {
-      q,
-      idx,
-      selectedIdx,
-      timeSpent,
-      isCorrect,
-      isSkipped,
-      isIncorrect
-    };
+    // Search condition
+    if (navSearch.trim()) {
+      const query = navSearch.toLowerCase();
+      const qNum = (item.idx + 1).toString();
+      const qText = item.q.question.toLowerCase();
+      return qNum.includes(query) || qText.includes(query);
+    }
+    return true;
   });
 
-  const currentItem = questionItems[currentQuestionIndex];
-  if (!currentItem) return null;
+  // Reusable Question Navigator Grid Component
+  const renderNavigatorContent = (onClose?: () => void) => (
+    <div className="space-y-3.5">
+      {/* Header Info & Stats */}
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+            <Grid size={18} />
+          </div>
+          <div>
+            <h3 className="font-black text-xs sm:text-sm uppercase tracking-wider text-slate-900 dark:text-white">Question Navigator</h3>
+            <p className="text-[10px] font-bold text-slate-400">Total {quiz.questions.length} Questions</p>
+          </div>
+        </div>
+        {onClose && (
+          <button 
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-all"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
 
-  const { q: currentQuestion, selectedIdx, timeSpent, isCorrect, isSkipped, isIncorrect } = currentItem;
-  const isSaved = savedIds.has(currentQuestion.id);
+      {/* Quick Search Bar */}
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input 
+          type="text"
+          value={navSearch}
+          onChange={e => setNavSearch(e.target.value)}
+          placeholder="Search Q# or text..."
+          className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70 rounded-xl text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+        />
+        {navSearch && (
+          <button 
+            onClick={() => setNavSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+          >
+            Clear
+          </button>
+        )}
+      </div>
 
-  // Reattempt choice for current question
-  const reattemptChoice = reattemptChoices[currentQuestionIndex];
-  const hasReattempted = reattemptChoice !== undefined;
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar text-[10px] font-extrabold uppercase tracking-wider">
+        <button
+          onClick={() => setNavFilter('ALL')}
+          className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${navFilter === 'ALL' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}
+        >
+          All ({quiz.questions.length})
+        </button>
+        <button
+          onClick={() => setNavFilter('CORRECT')}
+          className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${navFilter === 'CORRECT' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'}`}
+        >
+          Correct ({score.correct})
+        </button>
+        <button
+          onClick={() => setNavFilter('WRONG')}
+          className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${navFilter === 'WRONG' ? 'bg-rose-600 text-white' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400'}`}
+        >
+          Wrong ({score.incorrect})
+        </button>
+        <button
+          onClick={() => setNavFilter('SKIPPED')}
+          className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${navFilter === 'SKIPPED' ? 'bg-amber-600 text-white' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'}`}
+        >
+          Skipped ({score.skipped})
+        </button>
+        <button
+          onClick={() => setNavFilter('BOOKMARKED')}
+          className={`px-2.5 py-1 rounded-lg shrink-0 transition-all ${navFilter === 'BOOKMARKED' ? 'bg-blue-600 text-white' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'}`}
+        >
+          Saved ({savedIds.size})
+        </button>
+      </div>
 
-  const handleNext = () => {
-    if (currentQuestionIndex < quiz.questions.length - 1) {
-      setSlideDirection(1);
-      setCurrentQuestionIndex(prev => prev + 1);
-    }
-  };
+      {/* Question Grid */}
+      {filteredNavItems.length === 0 ? (
+        <div className="py-8 text-center text-slate-400 text-xs font-bold">
+          No questions match your filter/search.
+        </div>
+      ) : (
+        <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2 max-h-72 lg:max-h-80 overflow-y-auto p-1 scroll-smooth">
+          {filteredNavItems.map((item) => {
+            const i = item.idx;
+            const isActive = i === currentQuestionIndex;
+            let bgClass = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700";
 
-  const handlePrev = () => {
-    if (currentQuestionIndex > 0) {
-      setSlideDirection(-1);
-      setCurrentQuestionIndex(prev => prev - 1);
-    }
-  };
+            if (isActive) {
+              bgClass = "bg-blue-600 text-white font-black ring-4 ring-blue-500/30 scale-105 border-2 border-blue-700 shadow-md";
+            } else if (item.isCorrect) {
+              bgClass = "bg-emerald-500 text-white font-black";
+            } else if (item.isIncorrect) {
+              bgClass = "bg-rose-500 text-white font-black";
+            } else if (item.isSkipped) {
+              bgClass = "bg-amber-500 text-white font-black";
+            }
+
+            return (
+              <button
+                key={i}
+                onClick={() => {
+                  setSlideDirection(i >= currentQuestionIndex ? 1 : -1);
+                  setCurrentQuestionIndex(i);
+                  if (onClose) onClose();
+                }}
+                className={`relative h-11 rounded-xl flex items-center justify-center font-black text-xs transition-all active:scale-95 ${bgClass}`}
+              >
+                {i + 1}
+                {item.isBookmarked && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-1 ring-white dark:ring-slate-900" title="Bookmarked" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {onClose && (
+        <div className="pt-2">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-black text-xs uppercase tracking-wider"
+          >
+            Close Navigator
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-[#fcfdfe] dark:bg-slate-950 text-slate-900 dark:text-white select-text">
@@ -141,78 +314,7 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-2xl space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                    <Grid size={18} />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white">Question Navigator</h3>
-                    <p className="text-[10px] font-bold text-slate-400">Click any question number to jump directly</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setShowPalette(false)}
-                  className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-all"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Status Legend */}
-              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider px-2 py-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Correct ({score.correct})
-                </span>
-                <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Wrong ({score.incorrect})
-                </span>
-                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Skipped ({score.skipped})
-                </span>
-              </div>
-
-              {/* Question Grid */}
-              <div className="grid grid-cols-5 sm:grid-cols-6 gap-2 max-h-72 overflow-y-auto p-1 scroll-smooth">
-                {quiz.questions.map((_, i) => {
-                  const item = questionItems[i];
-                  const isActive = i === currentQuestionIndex;
-                  let bgClass = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700";
-
-                  if (isActive) {
-                    bgClass = "bg-blue-600 text-white font-black ring-4 ring-blue-500/30 scale-105 border-2 border-blue-700 shadow-md";
-                  } else if (item.isCorrect) {
-                    bgClass = "bg-emerald-500 text-white font-black";
-                  } else if (item.isIncorrect) {
-                    bgClass = "bg-rose-500 text-white font-black";
-                  } else if (item.isSkipped) {
-                    bgClass = "bg-amber-500 text-white font-black";
-                  }
-
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setSlideDirection(i >= currentQuestionIndex ? 1 : -1);
-                        setCurrentQuestionIndex(i);
-                        setShowPalette(false);
-                      }}
-                      className={`h-11 rounded-xl flex items-center justify-center font-black text-xs transition-all active:scale-95 ${bgClass}`}
-                    >
-                      {i + 1}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="pt-2 flex items-center justify-end">
-                <button
-                  onClick={() => setShowPalette(false)}
-                  className="w-full py-2.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-black text-xs uppercase tracking-wider"
-                >
-                  Close Navigator
-                </button>
-              </div>
+              {renderNavigatorContent(() => setShowPalette(false))}
             </motion.div>
           </div>
         )}
@@ -293,40 +395,43 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
         </div>
       </div>
 
-      {/* Main Question Card Area */}
+      {/* Main Question Card Area & Desktop Two-Column Layout */}
       <div 
-        className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 relative"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-4 relative"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <AnimatePresence mode="popLayout" custom={slideDirection}>
-          <motion.div
-            key={currentQuestionIndex}
-            custom={slideDirection}
-            variants={{
-              enter: (dir: number) => ({
-                x: dir > 0 ? "100%" : "-100%",
-                opacity: 0.8,
-              }),
-              center: {
-                x: "0%",
-                opacity: 1,
-              },
-              exit: (dir: number) => ({
-                x: dir > 0 ? "-100%" : "100%",
-                opacity: 0.8,
-              }),
-            }}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{
-              x: { type: "spring", stiffness: 280, damping: 28 },
-              opacity: { duration: 0.2 },
-            }}
-            className="w-full max-w-2xl mx-auto space-y-3.5"
-          >
+        <div className="max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Main Question Column */}
+          <div className="lg:col-span-8 w-full min-w-0">
+            <AnimatePresence mode="popLayout" custom={slideDirection}>
+              <motion.div
+                key={currentQuestionIndex}
+                custom={slideDirection}
+                variants={{
+                  enter: (dir: number) => ({
+                    x: dir > 0 ? "100%" : "-100%",
+                    opacity: 0.8,
+                  }),
+                  center: {
+                    x: "0%",
+                    opacity: 1,
+                  },
+                  exit: (dir: number) => ({
+                    x: dir > 0 ? "-100%" : "100%",
+                    opacity: 0.8,
+                  }),
+                }}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{
+                  x: { type: "spring", stiffness: 280, damping: 28 },
+                  opacity: { duration: 0.2 },
+                }}
+                className="w-full space-y-3.5"
+              >
             {/* Question Text Box (Smaller, compact font sizes) */}
             <div className="bg-blue-50/40 dark:bg-slate-900 border border-blue-100 dark:border-slate-800 p-3.5 sm:p-4 rounded-xl shadow-xs">
               <div className="flex items-center justify-between mb-1.5">
@@ -462,6 +567,13 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Desktop Persistent Navigator Sidebar */}
+      <div className="hidden lg:block lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm sticky top-4">
+        {renderNavigatorContent()}
+      </div>
+    </div>
+  </div>
 
       {/* Bottom Navigation Footer (Previous / Reattempt / Next) */}
       <div className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 shadow-lg z-20">

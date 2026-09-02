@@ -147,17 +147,22 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
     <div className="w-full max-w-md mx-auto pt-2 pb-24 px-4 animate-in fade-in slide-in-from-bottom-4 duration-300 text-slate-900 dark:text-white">
       
       {/* TOP APP HEADER */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between gap-2 mb-4">
         <button
           onClick={onRestart}
-          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all shadow-xs"
+          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all shadow-xs shrink-0"
+          title="Back to Home"
         >
           <ArrowLeft size={18} />
         </button>
 
-        <div className="text-center">
-          <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">QuizFlash</h1>
-          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 truncate max-w-[200px]">{quiz.title}</p>
+        <div className="text-center min-w-0 flex-1 px-1">
+          <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+            Performance Analysis
+          </span>
+          <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white truncate" title={quiz.title}>
+            {quiz.title}
+          </h1>
         </div>
 
         <button
@@ -169,7 +174,8 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
               alert("Link copied to clipboard!");
             }
           }}
-          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all shadow-xs"
+          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all shadow-xs shrink-0"
+          title="Share Score"
         >
           <Share2 size={18} />
         </button>
