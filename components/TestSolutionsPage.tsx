@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, CheckCircle2, XCircle, Bookmark, Sparkles, 
-  HelpCircle, ChevronLeft, ChevronRight, Check, X, Brain, Grid, Home, RotateCcw
+  ChevronLeft, ChevronRight, Check, X, Brain, Grid, RotateCcw
 } from 'lucide-react';
 import { Quiz, UserAnswer, Question } from '../types';
 
@@ -43,9 +43,13 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [slideDirection, setSlideDirection] = useState(1);
   const [showPalette, setShowPalette] = useState(false);
-  const [filter, setFilter] = useState<'ALL' | 'CORRECT' | 'INCORRECT' | 'SKIPPED'>('ALL');
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchEndX, setTouchEndX] = useState<number | null>(null);
+
+  // Reattempt mode state inside Review page
+  const [isReattemptMode, setIsReattemptMode] = useState(false);
+  // Map of questionIndex -> user's reattempt chosen option index
+  const [reattemptChoices, setReattemptChoices] = useState<Record<number, number>>({});
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchEndX(null);
@@ -60,15 +64,25 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
     if (!touchStartX || !touchEndX) return;
     const distance = touchStartX - touchEndX;
     if (distance > 45) {
-      // Swiped left -> Next
       handleNext();
     } else if (distance < -45) {
-      // Swiped right -> Prev
       handlePrev();
     }
   };
 
-  // Filter indices map
+  // Toggle Reattempt mode
+  const handleToggleReattempt = () => {
+    setIsReattemptMode(prev => !prev);
+  };
+
+  // Handle reattempt option click
+  const handleReattemptSelectOption = (optIdx: number) => {
+    setReattemptChoices(prev => ({
+      ...prev,
+      [currentQuestionIndex]: optIdx
+    }));
+  };
+
   const questionItems = quiz.questions.map((q, idx) => {
     const userAnswer = results.find(a => 
       a.questionIndex !== undefined ? a.questionIndex === idx : a.questionId === q.id
@@ -88,18 +102,15 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
     };
   });
 
-  const filteredItems = questionItems.filter(item => {
-    if (filter === 'CORRECT') return item.isCorrect;
-    if (filter === 'INCORRECT') return item.isIncorrect;
-    if (filter === 'SKIPPED') return item.isSkipped;
-    return true;
-  });
-
   const currentItem = questionItems[currentQuestionIndex];
   if (!currentItem) return null;
 
   const { q: currentQuestion, selectedIdx, isCorrect, isSkipped, isIncorrect } = currentItem;
   const isSaved = savedIds.has(currentQuestion.id);
+
+  // Reattempt choice for current question
+  const reattemptChoice = reattemptChoices[currentQuestionIndex];
+  const hasReattempted = reattemptChoice !== undefined;
 
   const handleNext = () => {
     if (currentQuestionIndex < quiz.questions.length - 1) {
@@ -205,9 +216,9 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Top Test-like Header Navigation */}
-      <div className="bg-slate-900 text-white dark:bg-slate-950 border-b border-slate-800 px-3 sm:px-4 py-3 shadow-md flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      {/* Top Header Navigation */}
+      <div className="bg-slate-900 text-white dark:bg-slate-950 border-b border-slate-800 px-3 sm:px-4 py-2.5 shadow-md flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
           <button 
             onClick={onBack}
             className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all shadow-xs active:scale-95 shrink-0"
@@ -219,138 +230,75 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
           {/* Question Navigator Trigger */}
           <button
             onClick={() => setShowPalette(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 rounded-xl font-black text-xs uppercase tracking-wider transition-all border border-blue-500/30 shadow-xs active:scale-95 shrink-0"
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 rounded-xl font-extrabold text-[10px] uppercase tracking-wider transition-all border border-blue-500/30 shadow-xs active:scale-95 shrink-0"
             title="Open Question Navigator Grid"
           >
-            <Grid size={14} />
+            <Grid size={13} />
             <span>Q {currentQuestionIndex + 1} / {quiz.questions.length}</span>
           </button>
         </div>
 
         <div className="text-center hidden md:block flex-1 mx-2">
-          <h2 className="text-xs font-black tracking-tight text-white truncate max-w-xs mx-auto">
+          <h2 className="text-[11px] font-extrabold tracking-tight text-white truncate max-w-xs mx-auto">
             {quiz.title}
           </h2>
-          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Solutions & Explanation Mode</span>
+          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">
+            {isReattemptMode ? "Interactive Reattempt Mode" : "Solutions & Explanation Mode"}
+          </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Reattempt Button */}
-          {onRetake && (
-            <button
-              onClick={onRetake}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20 active:scale-95 shrink-0"
-              title="Reattempt Test"
-            >
-              <RotateCcw size={14} /> <span className="hidden sm:inline">Reattempt</span>
-            </button>
-          )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Reattempt Toggle Button */}
+          <button
+            onClick={handleToggleReattempt}
+            className={`px-2.5 py-1.5 rounded-xl font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all shadow-xs active:scale-95 shrink-0 ${
+              isReattemptMode 
+                ? 'bg-amber-500 text-white ring-2 ring-amber-400/50' 
+                : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30'
+            }`}
+            title={isReattemptMode ? "Show Answers" : "Hide Answers & Reattempt"}
+          >
+            <RotateCcw size={12} />
+            <span>{isReattemptMode ? "Show Answers" : "Reattempt"}</span>
+          </button>
 
           {/* Status Badge */}
-          {isCorrect && (
-            <span className="hidden sm:flex px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-wider border border-emerald-500/30 items-center gap-1">
-              <CheckCircle2 size={12} /> Correct
-            </span>
-          )}
-          {isIncorrect && (
-            <span className="hidden sm:flex px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-400 text-[9px] font-black uppercase tracking-wider border border-rose-500/30 items-center gap-1">
-              <XCircle size={12} /> Incorrect
-            </span>
-          )}
-          {isSkipped && (
-            <span className="hidden sm:flex px-2.5 py-1 rounded-full bg-slate-700 text-slate-300 text-[9px] font-black uppercase tracking-wider items-center gap-1">
-              Skipped
-            </span>
+          {!isReattemptMode && (
+            <>
+              {isCorrect && (
+                <span className="hidden sm:flex px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-wider border border-emerald-500/30 items-center gap-1">
+                  <CheckCircle2 size={11} /> Correct
+                </span>
+              )}
+              {isIncorrect && (
+                <span className="hidden sm:flex px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[9px] font-black uppercase tracking-wider border border-rose-500/30 items-center gap-1">
+                  <XCircle size={11} /> Incorrect
+                </span>
+              )}
+              {isSkipped && (
+                <span className="hidden sm:flex px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 text-[9px] font-black uppercase tracking-wider items-center gap-1">
+                  Skipped
+                </span>
+              )}
+            </>
           )}
 
+          {/* Bookmark Button */}
           <button
             onClick={() => onBookmark(currentQuestion)}
-            className={`p-2 rounded-xl transition-all ${
-              isSaved ? 'bg-amber-500 text-white shadow-md' : 'bg-slate-800 text-slate-400 hover:text-amber-400'
+            className={`p-1.5 rounded-xl transition-all ${
+              isSaved ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
             }`}
             title="Bookmark Question"
           >
-            <Bookmark size={15} fill={isSaved ? "currentColor" : "none"} />
+            <Bookmark size={14} className={isSaved ? "fill-amber-400" : ""} />
           </button>
         </div>
       </div>
 
-      {/* Filter Tabs Bar */}
-      <div className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2 flex items-center justify-between gap-2 overflow-x-auto">
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Filter View:</span>
-          <button
-            onClick={() => { setFilter('ALL'); setCurrentQuestionIndex(0); }}
-            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-              filter === 'ALL' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            All ({quiz.questions.length})
-          </button>
-          <button
-            onClick={() => { setFilter('CORRECT'); const first = questionItems.findIndex(i => i.isCorrect); if(first !== -1) setCurrentQuestionIndex(first); }}
-            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-              filter === 'CORRECT' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            Correct ({score.correct})
-          </button>
-          <button
-            onClick={() => { setFilter('INCORRECT'); const first = questionItems.findIndex(i => i.isIncorrect); if(first !== -1) setCurrentQuestionIndex(first); }}
-            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-              filter === 'INCORRECT' ? 'bg-rose-600 text-white shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            Incorrect ({score.incorrect})
-          </button>
-          <button
-            onClick={() => { setFilter('SKIPPED'); const first = questionItems.findIndex(i => i.isSkipped); if(first !== -1) setCurrentQuestionIndex(first); }}
-            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-              filter === 'SKIPPED' ? 'bg-slate-700 text-white shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            Skipped ({score.skipped})
-          </button>
-        </div>
-      </div>
-
-      {/* Horizontal Question Circle Navigator Bar (Exactly like test taking) */}
-      <div className="w-full bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 py-2.5 px-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-1.5 overflow-x-auto scroll-smooth no-scrollbar">
-          {quiz.questions.map((_, i) => {
-            const item = questionItems[i];
-            const isActive = i === currentQuestionIndex;
-
-            let circleClass = "bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700";
-            if (isActive) {
-              circleClass = "bg-blue-600 text-white ring-4 ring-blue-500/30 scale-105 font-black border-2 border-blue-700";
-            } else if (item.isCorrect) {
-              circleClass = "bg-emerald-500 text-white font-bold";
-            } else if (item.isIncorrect) {
-              circleClass = "bg-rose-500 text-white font-bold";
-            } else if (item.isSkipped) {
-              circleClass = "bg-amber-500 text-white font-bold";
-            }
-
-            return (
-              <button
-                key={i}
-                onClick={() => {
-                  setSlideDirection(i >= currentQuestionIndex ? 1 : -1);
-                  setCurrentQuestionIndex(i);
-                }}
-                className={`w-9 h-9 rounded-full text-xs flex items-center justify-center font-black transition-all shrink-0 ${circleClass}`}
-              >
-                {i + 1}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Main Question Card Area (Test Taking UI style) */}
+      {/* Main Question Card Area */}
       <div 
-        className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 relative"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 relative"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -380,111 +328,212 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
               x: { type: "spring", stiffness: 280, damping: 28 },
               opacity: { duration: 0.2 },
             }}
-            className="w-full max-w-2xl mx-auto space-y-5"
+            className="w-full max-w-2xl mx-auto space-y-3.5"
           >
-            {/* Question Text Box */}
-            <div className="bg-blue-50/40 dark:bg-slate-900 border border-blue-100 dark:border-slate-800 p-5 rounded-2xl shadow-xs">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+            {/* Reattempt Notification Banner */}
+            {isReattemptMode && !hasReattempted && (
+              <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between text-amber-600 dark:text-amber-400 text-[11px] font-bold">
+                <span className="flex items-center gap-1.5">
+                  <RotateCcw size={13} className="animate-spin" style={{ animationDuration: '4s' }} />
+                  Reattempting Question #{currentQuestionIndex + 1} — Select an answer below
+                </span>
+                <span className="text-[9px] uppercase tracking-wider opacity-80">Answers Hidden</span>
+              </div>
+            )}
+
+            {/* Question Text Box (Smaller, compact font sizes) */}
+            <div className="bg-blue-50/40 dark:bg-slate-900 border border-blue-100 dark:border-slate-800 p-3.5 sm:p-4 rounded-xl shadow-xs">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[9px] font-extrabold uppercase tracking-widest text-blue-600 dark:text-blue-400">
                   Question #{currentQuestionIndex + 1} of {quiz.questions.length}
                 </span>
               </div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-relaxed break-words">
+              <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-relaxed break-words">
                 {highlightQuestionText(currentQuestion.question)}
               </h3>
             </div>
 
-            {/* Options List */}
-            <div className="space-y-3">
+            {/* Options List (Smaller font size & reattempt logic) */}
+            <div className="space-y-2">
               {currentQuestion.options.map((opt, optIdx) => {
-                const isOptionCorrect = optIdx === currentQuestion.correctAnswerIndex;
-                const isUserChoice = optIdx === selectedIdx;
+                const isCorrectOption = optIdx === currentQuestion.correctAnswerIndex;
+                const isFirstChoice = optIdx === selectedIdx;
+                const isSecondChoice = optIdx === reattemptChoice;
 
                 let optStyle = "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300";
-                let badge = null;
+                let badges: React.ReactNode[] = [];
 
-                if (isOptionCorrect) {
-                  optStyle = "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold ring-1 ring-emerald-500/30";
-                  badge = (
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
-                      <Check size={11} /> Correct Answer
-                    </span>
-                  );
-                } else if (isUserChoice && !isOptionCorrect) {
-                  optStyle = "bg-rose-50 dark:bg-rose-950/50 border-rose-500 text-rose-950 dark:text-rose-100 font-bold ring-1 ring-rose-500/30";
-                  badge = (
-                    <span className="px-2.5 py-1 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
-                      <X size={11} /> Your Choice
-                    </span>
-                  );
+                if (isReattemptMode && !hasReattempted) {
+                  // In reattempt mode BEFORE selecting: hide answers, show interactive hover
+                  optStyle = "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 cursor-pointer active:scale-[0.99]";
+                } else if (isReattemptMode && hasReattempted) {
+                  // In reattempt mode AFTER selecting: show 1st Choice, 2nd Choice, and Right Answer
+                  const isRight = isCorrectOption;
+
+                  if (isFirstChoice && isSecondChoice) {
+                    // User picked same option both times
+                    if (isRight) {
+                      optStyle = "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold ring-1 ring-emerald-500/30";
+                      badges.push(
+                        <span key="1st2nd-right" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                          <Check size={10} /> 1st & 2nd Choice (Right Answer)
+                        </span>
+                      );
+                    } else {
+                      optStyle = "bg-rose-50 dark:bg-rose-950/50 border-rose-500 text-rose-950 dark:text-rose-100 font-bold ring-1 ring-rose-500/30";
+                      badges.push(
+                        <span key="1st2nd-wrong" className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                          <X size={10} /> 1st & 2nd Choice
+                        </span>
+                      );
+                    }
+                  } else {
+                    if (isFirstChoice) {
+                      badges.push(
+                        <span key="1st" className="px-2 py-0.5 rounded-full bg-slate-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                          1st Choice
+                        </span>
+                      );
+                    }
+                    if (isSecondChoice) {
+                      if (isRight) {
+                        badges.push(
+                          <span key="2nd-right" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                            <Check size={10} /> 2nd Choice (Correct)
+                          </span>
+                        );
+                      } else {
+                        badges.push(
+                          <span key="2nd-wrong" className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                            <X size={10} /> 2nd Choice
+                          </span>
+                        );
+                      }
+                    }
+                    if (isRight) {
+                      badges.push(
+                        <span key="right" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                          <Check size={10} /> Right Answer
+                        </span>
+                      );
+                    }
+
+                    // Background styling for choices
+                    if (isRight) {
+                      optStyle = "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold ring-1 ring-emerald-500/30";
+                    } else if (isSecondChoice) {
+                      optStyle = "bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-950 dark:text-amber-100 font-bold";
+                    } else if (isFirstChoice) {
+                      optStyle = "bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold";
+                    }
+                  }
+                } else {
+                  // Normal Review Mode (answers shown)
+                  if (isCorrectOption) {
+                    optStyle = "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold ring-1 ring-emerald-500/30";
+                    badges.push(
+                      <span key="normal-right" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                        <Check size={10} /> Right Answer
+                      </span>
+                    );
+                  } else if (isFirstChoice && !isCorrectOption) {
+                    optStyle = "bg-rose-50 dark:bg-rose-950/50 border-rose-500 text-rose-950 dark:text-rose-100 font-bold ring-1 ring-rose-500/30";
+                    badges.push(
+                      <span key="normal-wrong" className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                        <X size={10} /> Your Choice
+                      </span>
+                    );
+                  }
                 }
 
                 return (
                   <div 
                     key={optIdx}
-                    className={`p-4 rounded-2xl border text-xs sm:text-sm flex items-center justify-between gap-3 transition-all ${optStyle}`}
+                    onClick={() => {
+                      if (isReattemptMode && !hasReattempted) {
+                        handleReattemptSelectOption(optIdx);
+                      }
+                    }}
+                    className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-xl border text-[11px] sm:text-xs flex items-center justify-between gap-2.5 transition-all ${optStyle}`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
-                        isOptionCorrect ? 'bg-emerald-600 text-white' : isUserChoice ? 'bg-rose-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-extrabold text-[10px] shrink-0 ${
+                        !isReattemptMode && isCorrectOption 
+                          ? 'bg-emerald-600 text-white' 
+                          : !isReattemptMode && isFirstChoice 
+                          ? 'bg-rose-600 text-white' 
+                          : isReattemptMode && hasReattempted && isCorrectOption
+                          ? 'bg-emerald-600 text-white'
+                          : isReattemptMode && hasReattempted && isSecondChoice
+                          ? 'bg-amber-600 text-white'
+                          : isReattemptMode && hasReattempted && isFirstChoice
+                          ? 'bg-slate-600 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                       }`}>
                         {String.fromCharCode(65 + optIdx)}
                       </span>
                       <span className="leading-snug break-words">{opt}</span>
                     </div>
-                    {badge}
+                    <div className="flex items-center gap-1 flex-wrap justify-end shrink-0">
+                      {badges}
+                    </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* Explanation & AI Concept Deep Dive */}
-            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-wider flex items-center gap-1.5">
-                  <Brain size={16} className="text-amber-500" /> Explanation & Concept Insight
-                </span>
-                <button
-                  onClick={() => onExplain(currentQuestion, selectedIdx)}
-                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all shrink-0"
-                >
-                  <Sparkles size={12} className="text-amber-300" /> AI Deep Concept
-                </button>
+            {/* Explanation & AI Concept Deep Dive (Hidden in Reattempt mode until question is answered) */}
+            {(!isReattemptMode || hasReattempted) && (
+              <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 rounded-xl space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 font-black text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                    <Brain size={14} className="text-amber-500" /> Explanation & Concept Insight
+                  </span>
+                  <button
+                    onClick={() => onExplain(currentQuestion, reattemptChoice ?? selectedIdx)}
+                    className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all shrink-0"
+                  >
+                    <Sparkles size={11} className="text-amber-300" /> AI Deep Concept
+                  </button>
+                </div>
+                <p className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                  {currentQuestion.explanation || "No static explanation available. Click 'AI Deep Concept' for a complete breakdown!"}
+                </p>
               </div>
-              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                {currentQuestion.explanation || "No static explanation available. Click 'AI Deep Concept' for a complete breakdown!"}
-              </p>
-            </div>
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
 
       {/* Bottom Navigation Footer (Previous / Reattempt / Next) */}
-      <div className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-2 shadow-lg z-20">
+      <div className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 shadow-lg z-20">
         <button
           onClick={handlePrev}
           disabled={currentQuestionIndex === 0}
-          className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+          className={`px-3 sm:px-4 py-2 rounded-xl font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1 transition-all ${
             currentQuestionIndex === 0 
               ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400' 
               : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 active:scale-95'
           }`}
         >
-          <ChevronLeft size={16} /> <span className="hidden sm:inline">Previous</span>
+          <ChevronLeft size={15} /> <span className="hidden sm:inline">Previous</span>
         </button>
 
         <div className="flex items-center gap-2">
-          {onRetake && (
-            <button
-              onClick={onRetake}
-              className="px-3.5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all"
-              title="Reattempt Test"
-            >
-              <RotateCcw size={14} /> Reattempt
-            </button>
-          )}
+          {/* Reattempt button in footer */}
+          <button
+            onClick={handleToggleReattempt}
+            className={`px-3 py-2 rounded-xl font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all shadow-xs active:scale-95 ${
+              isReattemptMode
+                ? 'bg-amber-500 text-white'
+                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+            }`}
+            title="Reattempt Test"
+          >
+            <RotateCcw size={13} /> {isReattemptMode ? "Show Answers" : "Reattempt"}
+          </button>
 
-          <span className="text-[11px] sm:text-xs font-black text-slate-500 dark:text-slate-400 hidden md:inline">
+          <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 hidden md:inline">
             Q {currentQuestionIndex + 1} of {quiz.questions.length}
           </span>
         </div>
@@ -492,13 +541,13 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
         <button
           onClick={handleNext}
           disabled={currentQuestionIndex === quiz.questions.length - 1}
-          className={`px-4 sm:px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+          className={`px-3 sm:px-4 py-2 rounded-xl font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1 transition-all ${
             currentQuestionIndex === quiz.questions.length - 1 
               ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400' 
               : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 active:scale-95'
           }`}
         >
-          <span className="hidden sm:inline">Next</span> <ChevronRight size={16} />
+          <span className="hidden sm:inline">Next</span> <ChevronRight size={15} />
         </button>
       </div>
 
