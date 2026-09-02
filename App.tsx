@@ -24,10 +24,10 @@ import {
   Trophy, RefreshCcw, BookOpen, Trash2, Home, LayoutGrid, Bookmark, 
   Sparkles, Smartphone, Star, Zap, CheckCircle2, XCircle, X, 
   MessageSquare, ArrowRight, Sun, Moon, Maximize, Play, Settings, 
-  ShieldCheck, Dna, Info, AlertCircle, Maximize2,
+  ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
   ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe,
   Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw, Brain, CheckSquare,
-  Search, Loader2, ExternalLink, Check, AlertTriangle, GripVertical
+  Search, Loader2, ExternalLink, Check, AlertTriangle
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 import { UserProfileSettings } from './components/UserProfileSettings';
@@ -190,27 +190,17 @@ const App: React.FC = () => {
   } | null>(null);
 
   // Checks if a quiz already has paused progress; if yes, shows Resume or Start Fresh modal
-  const moveQuiz = (id: string, direction: 'up' | 'down') => {
-    setLibrary(prev => {
-      const index = prev.findIndex(q => q.id === id);
-      if (index === -1) return prev;
-      if (direction === 'up' && index === 0) return prev;
-      if (direction === 'down' && index === prev.length - 1) return prev;
-      
-      const newLib = [...prev];
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      [newLib[index], newLib[targetIndex]] = [newLib[targetIndex], newLib[index]];
-      localStorage.setItem('qf_lib_v4', JSON.stringify(newLib));
-      return newLib;
-    });
-  };
-
   const handleInitiateQuiz = (targetQuiz: QuizType) => {
-    const sanitizedQuestions = (targetQuiz.questions || []).map(q => ({
-      ...q,
-      options: (q.options || []).map(opt => typeof opt === 'string' ? opt : String(opt || '')),
-      explanation: q.explanation || ''
-    }));
+    // Sanitize question IDs to ensure they are strictly unique
+    const seenIds = new Set<string>();
+    const sanitizedQuestions = targetQuiz.questions.map(q => {
+      let id = q.id;
+      if (!id || seenIds.has(id)) {
+        id = crypto.randomUUID();
+      }
+      seenIds.add(id);
+      return { ...q, id };
+    });
     const sanitizedQuiz = { ...targetQuiz, questions: sanitizedQuestions };
 
     const saved = quizSessionService.getSessionForQuiz(sanitizedQuiz);
@@ -1276,7 +1266,9 @@ const App: React.FC = () => {
     setPausedQuizState(null);
     setError(null);
     setScanInfo(null);
-    setTab('HOME');
+    setAiPrompt('');
+    setTempText('');
+    setPastedText('');
   };
 
   const jsonTemplate = `{
@@ -1292,7 +1284,7 @@ const App: React.FC = () => {
 }`;
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-300 antialiased overflow-x-hidden ${appState !== 'QUIZ_IN_PROGRESS' ? 'pt-14 sm:pt-16' : ''}`}>
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#fcfdfe] text-slate-900'} antialiased overflow-x-hidden ${appState !== 'QUIZ_IN_PROGRESS' ? 'pt-14 sm:pt-16' : ''}`}>
       {appState !== 'QUIZ_IN_PROGRESS' && (
         <header className="fixed top-0 left-0 right-0 z-[60] bg-slate-900 border-b-2 border-black px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 text-white shadow-lg backdrop-blur-md">
           <div className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onClick={restart}>
@@ -1572,18 +1564,18 @@ const App: React.FC = () => {
        {appState === 'IDLE' && (
           <div className="animate-in fade-in duration-500">
             {tab === 'HOME' && (
-              <div className="relative min-h-screen -mx-4 -mt-16 pt-20 px-4 pb-24 bg-gradient-to-b from-slate-900 to-indigo-950 overflow-hidden">
+              <div className="relative min-h-screen -mx-4 -mt-16 pt-20 px-4 pb-24 bg-[#0B0D17] overflow-hidden">
                 {/* Space Background Effects */}
                 <div className="absolute inset-0 z-0 pointer-events-none">
-                   <div className="absolute top-[5%] left-[5%] w-64 h-64 bg-purple-500/40 rounded-full blur-[90px]"></div>
-                   <div className="absolute top-[30%] right-[0%] w-72 h-72 bg-sky-500/30 rounded-full blur-[100px]"></div>
-                   <div className="absolute bottom-[20%] left-[10%] w-80 h-80 bg-rose-500/20 rounded-full blur-[120px]"></div>
+                   <div className="absolute top-[5%] left-[5%] w-64 h-64 bg-purple-600/30 rounded-full blur-[90px]"></div>
+                   <div className="absolute top-[30%] right-[0%] w-72 h-72 bg-blue-600/20 rounded-full blur-[100px]"></div>
+                   <div className="absolute bottom-[20%] left-[10%] w-80 h-80 bg-fuchsia-600/10 rounded-full blur-[120px]"></div>
                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.15)_1px,transparent_1px)] bg-[size:40px_40px] opacity-30"></div>
                 </div>
 
                 <div className="relative z-10 space-y-4 max-w-3xl mx-auto pt-2">
                   {/* Unified Hero Banner - Compact */}
-                  <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-4 shadow-[0_0_30px_rgba(124,58,237,0.3)] border border-white/10 animate-in fade-in zoom-in duration-700">
+                  <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#2D1B6C] via-[#3C2792] to-[#5135B3] p-4 shadow-[0_0_30px_rgba(124,58,237,0.3)] border border-white/10 animate-in fade-in zoom-in duration-700">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-fuchsia-500/30 rounded-full blur-3xl -mr-10 -mt-10" />
                     <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/30 rounded-full blur-3xl -ml-10 -mb-10" />
                     
@@ -2098,18 +2090,6 @@ const App: React.FC = () => {
                             </div>
 
                              <div className="flex items-center gap-1 shrink-0">
-                               <button 
-                                 onClick={() => moveQuiz(q.id, 'up')}
-                                 className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                               >
-                                 <ChevronUp size={12} />
-                               </button>
-                               <button 
-                                 onClick={() => moveQuiz(q.id, 'down')}
-                                 className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                               >
-                                 <ChevronDown size={12} />
-                               </button>
                                <button 
                                  onClick={() => handleInitiateQuiz(q)}
                                  className="px-2 py-0.5 bg-blue-600 text-white rounded-lg font-black text-[8px] uppercase tracking-wider hover:bg-blue-700 transition-all shadow-2xs active:scale-95 flex items-center gap-0.5"
@@ -2950,4 +2930,3 @@ const TabButton = ({ active, onClick, icon, label, isDarkMode }: any) => (
 );
 
 export default App;
-

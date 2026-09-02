@@ -1101,18 +1101,12 @@ const Quiz: React.FC<QuizProps> = ({
             
             <div className="px-5 pb-8 flex-1 overflow-y-auto custom-scrollbar">
               <div className="max-w-2xl mx-auto">
-                <div className="flex items-center justify-between gap-3 mb-6">
+                <div className="flex items-center justify-between gap-3 mb-4">
                   <div>
                     <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Question Navigator</h4>
                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                       {mode === 'TEST' ? 'Green = Answered, Amber = Skipped, Gray = Not Visited' : 'Green = Correct, Red = Incorrect, Amber = Skipped, Gray = Not Visited'}
                     </p>
-                    {mode === 'PRACTICE' && (
-                      <div className="flex gap-4 mt-2">
-                        <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase">Correct: {quiz.questions.reduce((acc, _, i) => getQuestionStatus(i) === 'correct' ? acc + 1 : acc, 0)}</div>
-                        <div className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase">Wrong: {quiz.questions.reduce((acc, _, i) => getQuestionStatus(i) === 'incorrect' ? acc + 1 : acc, 0)}</div>
-                      </div>
-                    )}
                   </div>
                   <button 
                     onClick={() => { setShowPalette(false); setShowSubmitConfirm(true); }} 
@@ -1121,6 +1115,41 @@ const Quiz: React.FC<QuizProps> = ({
                     Submit Test
                   </button>
                 </div>
+
+                {/* Practice Mode Total Correct / Wrong / Skipped Summary Stats */}
+                {mode === 'PRACTICE' && (() => {
+                  const correctCount = userAnswers.filter(a => a.isCorrect).length;
+                  const incorrectCount = userAnswers.filter(a => a.selectedOptionIndex !== null && a.selectedOptionIndex !== undefined && !a.isCorrect).length;
+                  const answeredCount = userAnswers.filter(a => a.selectedOptionIndex !== null && a.selectedOptionIndex !== undefined).length;
+                  const skippedCount = Math.max(0, quiz.questions.length - answeredCount);
+
+                  return (
+                    <div className="grid grid-cols-4 gap-2 mb-4">
+                      <div className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/35 border border-emerald-200 dark:border-emerald-900/40 text-center">
+                        <div className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Correct</div>
+                        <div className="text-base font-black text-emerald-700 dark:text-emerald-300 mt-0.5 flex items-center justify-center gap-1">
+                          <CheckCircle2 size={12} />
+                          {correctCount}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/35 border border-rose-200 dark:border-rose-900/40 text-center">
+                        <div className="text-[9px] font-extrabold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Wrong</div>
+                        <div className="text-base font-black text-rose-700 dark:text-rose-300 mt-0.5 flex items-center justify-center gap-1">
+                          <XCircle size={12} />
+                          {incorrectCount}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/35 border border-amber-200 dark:border-amber-900/40 text-center">
+                        <div className="text-[9px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Skipped</div>
+                        <div className="text-base font-black text-amber-700 dark:text-amber-300 mt-0.5">{skippedCount}</div>
+                      </div>
+                      <div className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center">
+                        <div className="text-[9px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total</div>
+                        <div className="text-base font-black text-slate-800 dark:text-slate-200 mt-0.5">{quiz.questions.length}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(42px,1fr))] gap-2">
                   {quiz.questions.map((_, i) => {

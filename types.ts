@@ -59,7 +59,6 @@ export interface UserAnswer {
 export interface StoredQuiz extends Quiz {
   lastScore?: number;
   lastPoints?: number;
-  order?: number;
 }
 
 export interface BookmarkedQuestion {
