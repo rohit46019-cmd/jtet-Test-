@@ -895,30 +895,30 @@ const Quiz: React.FC<QuizProps> = ({
           </div>
         </div>
 
-        <AnimatePresence mode="wait" custom={slideDirection}>
+        <AnimatePresence mode="popLayout" custom={slideDirection}>
           <motion.div
             key={currentQuestionIndex}
             custom={slideDirection}
             variants={{
               enter: (direction: number) => ({
-                x: direction > 0 ? 65 : -65,
-                opacity: 0,
+                x: direction > 0 ? "100%" : "-100%",
+                opacity: 0.8,
               }),
               center: {
-                x: 0,
+                x: "0%",
                 opacity: 1,
               },
               exit: (direction: number) => ({
-                x: direction > 0 ? -65 : 65,
-                opacity: 0,
+                x: direction > 0 ? "-100%" : "100%",
+                opacity: 0.8,
               }),
             }}
             initial="enter"
             animate="center"
             exit="exit"
             transition={{
-              x: { type: "spring", stiffness: 360, damping: 32 },
-              opacity: { duration: 0.18 },
+              x: { type: "spring", stiffness: 280, damping: 28 },
+              opacity: { duration: 0.2 },
             }}
             className="w-full max-w-2xl mx-auto px-4 sm:px-0 space-y-4"
           >

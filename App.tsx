@@ -17,6 +17,7 @@ import { PhoneStorageModal } from './components/PhoneStorageModal';
 import { AiAuditModal } from './components/AiAuditModal';
 import { AiExplainModal } from './components/AiExplainModal';
 import { TestSummary } from './components/TestSummary';
+import { TestSolutionsPage } from './components/TestSolutionsPage';
 import { auditAndFixQuizQuestions } from './services/geminiService';
 import { quizSessionService } from './services/quizSessionService';
 import { motion, AnimatePresence } from 'motion/react';
@@ -56,8 +57,17 @@ const App: React.FC = () => {
   const [library, setLibrary] = useState<StoredQuiz[]>([]);
   const [bookmarks, setBookmarks] = useState<BookmarkedQuestion[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  
   const [scanInfo, setScanInfo] = useState<{ pages: number, words: number } | null>(null);
+  
+  const [showDetailedSolutions, setShowDetailedSolutions] = useState(false);
+
+  useEffect(() => {
+    const handleOpenDetailedSolutions = () => {
+      setShowDetailedSolutions(true);
+    };
+    window.addEventListener('open-detailed-solutions', handleOpenDetailedSolutions);
+    return () => window.removeEventListener('open-detailed-solutions', handleOpenDetailedSolutions);
+  }, []);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isFullBrowser, setIsFullBrowser] = useState(false);
   const [showJsonInfo, setShowJsonInfo] = useState(false);
@@ -2372,31 +2382,52 @@ const App: React.FC = () => {
         )}
 
         {appState === 'RESULTS' && results && quiz && (
-          <TestSummary
-            quiz={quiz}
-            quizConfig={quizConfig}
-            results={results}
-            score={calculateScoreData()}
-            isDarkMode={isDarkMode}
-            onRestart={restart}
-            onRetake={() => handleInitiateQuiz(quiz)}
-            onRetakeIncorrect={(incorrectQs) => {
-              const retryQuiz: QuizType = {
-                ...quiz,
-                id: 'retry-' + Date.now(),
-                title: `Retry Weak Spots: ${quiz.title}`,
-                questions: incorrectQs
-              };
-              handleInitiateQuiz(retryQuiz);
-            }}
-            onBookmark={handleBookmark}
-            savedIds={new Set(bookmarks.map(b => b.question.id))}
-            onExplain={(q, selectedIdx) => {
-              setExplainModalQuestion(q);
-              setExplainModalUserSelected(selectedIdx);
-              setShowAiExplainModal(true);
-            }}
-          />
+          showDetailedSolutions ? (
+            <TestSolutionsPage
+              quiz={quiz}
+              results={results}
+              score={calculateScoreData()}
+              isDarkMode={isDarkMode}
+              onBack={() => setShowDetailedSolutions(false)}
+              onRetake={() => {
+                setShowDetailedSolutions(false);
+                handleInitiateQuiz(quiz);
+              }}
+              onBookmark={handleBookmark}
+              savedIds={new Set(bookmarks.map(b => b.question.id))}
+              onExplain={(q, selectedIdx) => {
+                setExplainModalQuestion(q);
+                setExplainModalUserSelected(selectedIdx);
+                setShowAiExplainModal(true);
+              }}
+            />
+          ) : (
+            <TestSummary
+              quiz={quiz}
+              quizConfig={quizConfig}
+              results={results}
+              score={calculateScoreData()}
+              isDarkMode={isDarkMode}
+              onRestart={restart}
+              onRetake={() => handleInitiateQuiz(quiz)}
+              onRetakeIncorrect={(incorrectQs) => {
+                const retryQuiz: QuizType = {
+                  ...quiz,
+                  id: 'retry-' + Date.now(),
+                  title: `Retry Weak Spots: ${quiz.title}`,
+                  questions: incorrectQs
+                };
+                handleInitiateQuiz(retryQuiz);
+              }}
+              onBookmark={handleBookmark}
+              savedIds={new Set(bookmarks.map(b => b.question.id))}
+              onExplain={(q, selectedIdx) => {
+                setExplainModalQuestion(q);
+                setExplainModalUserSelected(selectedIdx);
+                setShowAiExplainModal(true);
+              }}
+            />
+          )
         )}
 
         {tab === 'LEADERBOARD' && appState === 'IDLE' && (
