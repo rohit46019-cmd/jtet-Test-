@@ -354,36 +354,75 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
               </div>
             </div>
           ) : explanation ? (
-            <div className="space-y-3 text-slate-700 dark:text-slate-300 text-xs sm:text-sm font-medium leading-relaxed">
+            <div className="space-y-3.5 text-slate-700 dark:text-slate-300 text-xs sm:text-sm font-medium leading-relaxed">
               {explanation.split('\n\n').map((block, bIdx) => {
                 const trimmed = block.trim();
                 if (!trimmed) return null;
 
-                const isCorrect = trimmed.includes('**🎯 Sahi Uttar') || trimmed.includes('**Correct Answer') || trimmed.startsWith('**🎯');
-                const isTrick = trimmed.includes('**📌 Memory Trick') || trimmed.includes('**Exam Tip') || trimmed.startsWith('**📌');
+                const isCorrect = trimmed.includes('🎯 Sahi Uttar') || trimmed.includes('Correct Answer') || trimmed.includes('🎯 Core Concept');
+                const isTrick = trimmed.includes('📌 Memory Trick') || trimmed.includes('Exam Tip') || trimmed.includes('📌 Key');
+                const isTrap = trimmed.includes('🚫 Option Breakdown') || trimmed.includes('Trap Analysis') || trimmed.includes('⚠️ Mistake');
 
                 return (
                   <div 
                     key={bIdx} 
-                    className={`flex items-start gap-2.5 p-3 rounded-xl transition-all ${
+                    className={`flex items-start gap-3 p-3.5 rounded-2xl transition-all shadow-3xs ${
                       isCorrect 
-                        ? 'bg-emerald-50/70 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-200 border border-emerald-200/60 dark:border-emerald-900/40' 
+                        ? 'bg-emerald-50/80 dark:bg-emerald-950/30 text-emerald-950 dark:text-emerald-100 border border-emerald-200 dark:border-emerald-900/50' 
                         : isTrick
-                        ? 'bg-amber-50/70 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 border border-amber-200/60 dark:border-amber-900/40'
-                        : 'bg-slate-50/80 dark:bg-slate-900/40'
+                        ? 'bg-amber-50/80 dark:bg-amber-950/30 text-amber-950 dark:text-amber-100 border border-amber-200 dark:border-amber-900/50'
+                        : isTrap
+                        ? 'bg-rose-50/80 dark:bg-rose-950/30 text-rose-950 dark:text-rose-100 border border-rose-200 dark:border-rose-900/50'
+                        : 'bg-slate-50/90 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800'
                     }`}
                   >
                     {isCorrect ? (
-                      <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                      <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                     ) : isTrick ? (
-                      <Lightbulb size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                      <Lightbulb size={18} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    ) : isTrap ? (
+                      <AlertTriangle size={18} className="text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
                     ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0" />
+                      <span className="w-2 h-2 rounded-full bg-blue-500 mt-2 shrink-0" />
                     )}
-                    <div className="flex-1 break-words space-y-1">
-                      {trimmed.split('\n').map((line, lIdx) => (
-                        <p key={lIdx}>{line.replace(/[*#]/g, '')}</p>
-                      ))}
+                    <div className="flex-1 break-words space-y-1.5">
+                      {trimmed.split('\n').map((line, lIdx) => {
+                        const lineTrimmed = line.trim();
+                        if (!lineTrimmed) return null;
+
+                        const isBullet = lineTrimmed.startsWith('•') || lineTrimmed.startsWith('-') || lineTrimmed.startsWith('* ') || /^\d+[\.\)]\s+/.test(lineTrimmed);
+                        const cleanLine = isBullet ? lineTrimmed.replace(/^[•\-\*\d\.\)]\s*/, '') : lineTrimmed;
+                        const parts = cleanLine.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+
+                        return (
+                          <div key={lIdx} className={`flex items-start gap-1.5 ${isBullet ? 'pl-2 my-0.5' : 'my-0.5'}`}>
+                            {isBullet && <span className="text-blue-500 dark:text-blue-400 font-extrabold text-xs select-none shrink-0">•</span>}
+                            <div className="flex-1">
+                              {parts.map((part, pIdx) => {
+                                if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+                                  const inner = part.slice(2, -2);
+                                  return (
+                                    <strong
+                                      key={pIdx}
+                                      className="font-black text-amber-950 dark:text-amber-100 bg-amber-200/90 dark:bg-amber-900/60 px-1.5 py-0.5 mx-0.5 rounded-md border border-amber-300/60 dark:border-amber-700/60 inline-block shadow-2xs"
+                                    >
+                                      {inner}
+                                    </strong>
+                                  );
+                                }
+                                if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+                                  return (
+                                    <em key={pIdx} className="italic text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.5 rounded">
+                                      {part.slice(1, -1)}
+                                    </em>
+                                  );
+                                }
+                                return part;
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

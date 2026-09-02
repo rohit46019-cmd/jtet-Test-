@@ -29,6 +29,57 @@ const highlightQuestionText = (text: string) => {
   return <span>{cleanText}</span>;
 };
 
+const FormattedExplanationBox: React.FC<{ text?: string }> = ({ text }) => {
+  if (!text || !text.trim()) {
+    return (
+      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 italic">
+        No static explanation available. Click 'AI Deep Concept' for a complete breakdown!
+      </p>
+    );
+  }
+
+  const blocks = text.split(/\n+/).map(b => b.trim()).filter(Boolean);
+
+  return (
+    <div className="space-y-2 text-[11px] sm:text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+      {blocks.map((block, bIdx) => {
+        const isBullet = block.startsWith('•') || block.startsWith('-') || block.startsWith('* ') || /^\d+[\.\)]\s+/.test(block);
+        const cleanBlock = isBullet ? block.replace(/^[•\-\*\d\.\)]\s*/, '') : block;
+        const parts = cleanBlock.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+
+        return (
+          <div key={bIdx} className={`flex items-start gap-1.5 ${isBullet ? 'pl-2.5 my-1' : 'my-1.5'}`}>
+            {isBullet && <span className="text-blue-500 dark:text-blue-400 font-extrabold text-xs select-none shrink-0">•</span>}
+            <div className="flex-1 break-words">
+              {parts.map((part, pIdx) => {
+                if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+                  const inner = part.slice(2, -2);
+                  return (
+                    <strong
+                      key={pIdx}
+                      className="font-black text-amber-950 dark:text-amber-100 bg-amber-200/80 dark:bg-amber-900/50 px-1.5 py-0.5 mx-0.5 rounded-md border border-amber-400/50 dark:border-amber-700/50 inline-block shadow-2xs"
+                    >
+                      {inner}
+                    </strong>
+                  );
+                }
+                if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+                  return (
+                    <em key={pIdx} className="italic text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.5 rounded">
+                      {part.slice(1, -1)}
+                    </em>
+                  );
+                }
+                return part;
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
   quiz,
   results,
@@ -559,9 +610,7 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
                     <Sparkles size={11} className="text-amber-300" /> AI Deep Concept
                   </button>
                 </div>
-                <p className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-                  {currentQuestion.explanation || "No static explanation available. Click 'AI Deep Concept' for a complete breakdown!"}
-                </p>
+                <FormattedExplanationBox text={currentQuestion.explanation} />
               </div>
             )}
           </motion.div>

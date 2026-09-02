@@ -52,7 +52,6 @@ const highlightQuestionText = (text: string) => {
 
 const renderFormattedText = (text: string) => {
   if (!text) return null;
-  // Clean any remaining raw escaped newline codes or /n inside the snippet
   const cleaned = text
     .replace(/\\n/g, ' ')
     .replace(/(?:\s*\/n\s*|\s*\/N\s*)/g, ' ');
@@ -60,15 +59,16 @@ const renderFormattedText = (text: string) => {
   const parts = cleaned.split(/(\*\*.*?\*\*|\*.*?\*)/g);
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      const inner = part.slice(2, -2);
       return (
-        <strong key={idx} className="font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/40 px-1.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-900/30">
-          {part.slice(2, -2)}
+        <strong key={idx} className="font-extrabold text-amber-950 dark:text-amber-100 bg-amber-200/80 dark:bg-amber-900/50 px-1.5 py-0.5 mx-0.5 rounded-md border border-amber-400/50 dark:border-amber-700/50 inline-block shadow-2xs">
+          {inner}
         </strong>
       );
     }
     if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
       return (
-        <em key={idx} className="italic text-emerald-600 dark:text-emerald-400 font-extrabold bg-emerald-50/60 dark:bg-emerald-950/30 px-1 py-0.5 rounded-md">
+        <em key={idx} className="italic text-emerald-700 dark:text-emerald-300 font-extrabold bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.5 rounded-md">
           {part.slice(1, -1)}
         </em>
       );

@@ -517,20 +517,25 @@ export async function generateServerBatchQuestions(
       ${difficultyPrompt}
       ${historyPrompt}
       
-      CRITICAL HIGHLIGHTING & EXPLANATION INSTRUCTIONS:
+      CRITICAL HIGHLIGHTING & SYSTEMATIC EXPLANATION INSTRUCTIONS:
       1. QUESTION TEXT HIGHLIGHTING: You MUST wrap the 1-2 most critical keywords in the question text with **bold** (e.g. "What is the **capital** of..."). If there are negative words like **NOT** or **INCORRECT**, bold them! Do this for EVERY question.
-      2. EXPLANATION STRUCTURE: Do NOT write long story-like or essay paragraphs. The "explanation" MUST be structured using bold titles, italic emphasis, and bullet points.
-      3. CORRECTIONS: If any answer choice represents a common misconception or incorrect trap, explicitly correct it and explain why the correct answer is right.
-      4. FOLLOW-UP: Include an **AI Follow-up Concept Check** question at the end of the explanation.
-      
-      Follow this exact explanation structure (translate headings to ${language}):
-      **Core Concept:** [Clear direct explanation]
-      **Why Correct & Misconception Correction:** [Reasoning with *italic emphasis* and correcting incorrect traps]
-      **Key Takeaways:**
-      • [Point 1 with **bold keywords**]
-      • [Point 2 with **bold keywords**]
-      **AI Concept Check:** [A quick interactive follow-up question to verify mastery]
-      
+      2. EXPLANATION MUST BE SYSTEMATIC (NO STORY/ESSAY PARAGRAPHS): Never write a continuous story-like paragraph. The explanation MUST be broken down systematically into logical sections separated by EMPTY LINES (\n\n) with bullet points and bold highlights.
+      3. HIGHLIGHT KEY TERMS ONLY IN EXPLANATION: Wrap 1-3 key technical concepts, key formulas, or crucial rules in the explanation with **bold** Markdown (e.g., "**Empirical Validation**").
+      4. FOLLOW THIS EXACT SYSTEMATIC STRUCTURE WITH LINE BREAKS (translate headings to ${language}):
+
+**🎯 Core Concept:** [Direct, crisp 1-line concept definition with **key terms** bolded]
+
+**✅ Why Correct:**
+• [Direct step-by-step reason why the correct option is right]
+• [Supporting logic or rule]
+
+**🚫 Distractor & Trap Analysis:**
+• [Clear point on why other choices/misconceptions are incorrect]
+
+**📌 Key Highlights & Exam Tip:**
+• [High-yield memory point or rule with **bold terms**]
+• [Interactive quick concept check]
+
       Return valid JSON.`,
         config: {
           responseMimeType: 'application/json',
@@ -632,21 +637,25 @@ export async function generateServerQuizFromText(
         LANGUAGE: Use ${language} for everything (questions, options, and explanations).
         ${difficultyPrompt}
         
-        CRITICAL HIGHLIGHTING & EXPLANATION INSTRUCTIONS:
-      1. QUESTION TEXT HIGHLIGHTING: You MUST wrap the 1-2 most critical keywords in the question text with **bold** (e.g. "What is the **capital** of..."). If there are negative words like **NOT** or **INCORRECT**, bold them! Do this for EVERY question.
-      2. EXPLANATION STRUCTURE: Do NOT write long story-like or essay paragraphs. The "explanation" MUST be structured using bold titles, italic emphasis, and bullet points.
-      3. CORRECTIONS: If any answer choice represents a common misconception or incorrect trap, explicitly correct it and explain why the correct answer is right.
-      4. FOLLOW-UP: Include an **AI Follow-up Concept Check** question at the end of the explanation.
-      
-      Follow this exact explanation structure (translate headings to ${language}):
-      **Core Concept:** [Clear direct explanation]
-      **Why Correct & Misconception Correction:** [Reasoning with *italic emphasis* and correcting incorrect traps]
-      **Key Takeaways:**
-      • [Point 1 with **bold keywords**]
-      • [Point 2 with **bold keywords**]
-      **AI Concept Check:** [A quick interactive follow-up question to verify mastery]
-      
-      Return valid JSON.
+        CRITICAL HIGHLIGHTING & SYSTEMATIC EXPLANATION INSTRUCTIONS:
+        1. QUESTION TEXT HIGHLIGHTING: You MUST wrap the 1-2 most critical keywords in the question text with **bold** (e.g. "What is the **capital** of...").
+        2. EXPLANATION MUST BE SYSTEMATIC (NO STORY/ESSAY PARAGRAPHS): Never write a continuous story-like paragraph. The explanation MUST be broken down systematically into logical sections separated by EMPTY LINES (\n\n) with bullet points and bold highlights.
+        3. HIGHLIGHT KEY TERMS ONLY IN EXPLANATION: Wrap 1-3 key technical concepts or crucial rules in the explanation with **bold** Markdown.
+        4. FOLLOW THIS EXACT SYSTEMATIC STRUCTURE WITH LINE BREAKS (translate headings to ${language}):
+
+**🎯 Core Concept:** [Direct, crisp concept definition with **key terms** bolded]
+
+**✅ Why Correct:**
+• [Point 1 explaining correct option]
+• [Point 2 with logic]
+
+**🚫 Distractor & Trap Analysis:**
+• [Why other choices are incorrect]
+
+**📌 Key Highlights & Exam Tip:**
+• [High-yield memory point with **bold terms**]
+
+        Return valid JSON.
         
         SEGMENT:
         ${textChunk}`,

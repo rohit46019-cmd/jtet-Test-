@@ -332,9 +332,20 @@ ${historyNote}
 CRITICAL RULES:
 1. Each question must have EXACTLY 4 plausible options.
 2. Provide a 0-indexed 'correctAnswerIndex' (0, 1, 2, or 3).
-3. Include a comprehensive explanation justifying the correct answer.
-4. HIGHLIGHTING: You MUST wrap the 1-2 most critical keywords in the question text with **bold** (e.g. "What is the **capital** of...").
-5. Output strict JSON matching the schema.`,
+3. SYSTEMATIC EXPLANATION (NO STORY/ESSAY): Never write a single long paragraph. Separate explanation into logical sections using EMPTY LINES (\n\n), bullet points (•), and bold keywords for highlighting.
+4. HIGHLIGHTING IN EXPLANATION: Wrap 1-3 key terms/concepts in the explanation with **bold** Markdown.
+5. Structure format:
+**🎯 Core Concept:** [Definition with **bold terms**]
+
+**✅ Why Correct:**
+• [Direct reason]
+
+**🚫 Trap Analysis:**
+• [Why other choices are incorrect]
+
+**📌 Key Takeaways:**
+• [Point with **bold terms**]
+6. Output strict JSON matching schema.`,
             config: {
               responseMimeType: 'application/json',
               responseSchema: {
