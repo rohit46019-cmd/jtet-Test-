@@ -30,6 +30,10 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
 
   const fetchExplanation = async (lang = language) => {
     try {
+      if (!explanation && question.explanation) {
+        const correctOpt = question.options[question.correctAnswerIndex] || '';
+        setExplanation(`**🎯 Verified Correct Answer:** Option ${String.fromCharCode(65 + question.correctAnswerIndex)} - ${correctOpt}\n\n**💡 Solution Breakdown:**\n${question.explanation}`);
+      }
       setLoading(true);
       setError(null);
       if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -68,6 +72,12 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      if (question.explanation) {
+        const correctOpt = question.options[question.correctAnswerIndex] || '';
+        setExplanation(`**🎯 Verified Correct Answer:** Option ${String.fromCharCode(65 + question.correctAnswerIndex)} - ${correctOpt}\n\n**💡 Solution Breakdown:**\n${question.explanation}`);
+      } else {
+        setExplanation('');
+      }
       fetchExplanation(language);
     } else {
       if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -278,7 +288,7 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
             <div className="space-y-4">
               {/* Question's built-in explanation fallback if available */}
               {question.explanation && question.explanation.trim().length > 0 && (
-                <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs space-y-2">
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs space-y-2">
                   <div className="flex items-center gap-2 font-black text-[11px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2 size={14} />
                     <span>Verified Answer & Solution</span>
@@ -290,7 +300,7 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
               )}
 
               {/* API Key Configuration Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs space-y-3">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
                     <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400">
@@ -344,66 +354,37 @@ export const AiExplainModal: React.FC<AiExplainModalProps> = ({
               </div>
             </div>
           ) : explanation ? (
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-50/60 via-blue-50/40 to-slate-50/60 dark:from-slate-800/80 dark:via-slate-800/50 dark:to-slate-900 border border-blue-100 dark:border-slate-700 space-y-3.5">
+            <div className="space-y-3 text-slate-700 dark:text-slate-300 text-xs sm:text-sm font-medium leading-relaxed">
               {explanation.split('\n\n').map((block, bIdx) => {
                 const trimmed = block.trim();
                 if (!trimmed) return null;
 
-                // Render styled cards for specific sections
-                if (trimmed.includes('**🎯 Sahi Uttar') || trimmed.includes('**Correct Answer') || trimmed.startsWith('**🎯')) {
-                  return (
-                    <div key={bIdx} className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs">
-                      <div className="flex items-center gap-2 font-black text-[11px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300 mb-1">
-                        <CheckCircle2 size={14} />
-                        <span>Verified Answer</span>
-                      </div>
-                      <div className="leading-relaxed font-medium">
-                        {trimmed.replace(/\*\*🎯[^*]+\*\*/, '').trim() || trimmed}
-                      </div>
-                    </div>
-                  );
-                }
+                const isCorrect = trimmed.includes('**🎯 Sahi Uttar') || trimmed.includes('**Correct Answer') || trimmed.startsWith('**🎯');
+                const isTrick = trimmed.includes('**📌 Memory Trick') || trimmed.includes('**Exam Tip') || trimmed.startsWith('**📌');
 
-                if (trimmed.includes('**📌 Memory Trick') || trimmed.includes('**Exam Tip') || trimmed.startsWith('**📌')) {
-                  return (
-                    <div key={bIdx} className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs">
-                      <div className="flex items-center gap-2 font-black text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-1">
-                        <Lightbulb size={14} />
-                        <span>Memory Trick & Exam Pro-Tip</span>
-                      </div>
-                      <div className="leading-relaxed font-medium">
-                        {trimmed.replace(/\*\*📌[^*]+\*\*/, '').trim() || trimmed}
-                      </div>
-                    </div>
-                  );
-                }
-
-                // General markdown paragraph / list items
                 return (
-                  <div key={bIdx} className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed space-y-1">
-                    {trimmed.split('\n').map((line, lIdx) => {
-                      const isHeading = line.startsWith('**') && line.endsWith('**') || line.startsWith('#');
-                      const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('* ');
-
-                      if (isHeading) {
-                        return (
-                          <h5 key={lIdx} className="font-black text-[12px] text-blue-700 dark:text-blue-400 mt-2 mb-1">
-                            {line.replace(/[*#]/g, '')}
-                          </h5>
-                        );
-                      }
-
-                      if (isBullet) {
-                        return (
-                          <div key={lIdx} className="flex items-start gap-2 pl-1 py-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
-                            <span>{line.replace(/^[•\-*]\s*/, '')}</span>
-                          </div>
-                        );
-                      }
-
-                      return <p key={lIdx}>{line}</p>;
-                    })}
+                  <div 
+                    key={bIdx} 
+                    className={`flex items-start gap-2.5 p-3 rounded-xl transition-all ${
+                      isCorrect 
+                        ? 'bg-emerald-50/70 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-200 border border-emerald-200/60 dark:border-emerald-900/40' 
+                        : isTrick
+                        ? 'bg-amber-50/70 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 border border-amber-200/60 dark:border-amber-900/40'
+                        : 'bg-slate-50/80 dark:bg-slate-900/40'
+                    }`}
+                  >
+                    {isCorrect ? (
+                      <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    ) : isTrick ? (
+                      <Lightbulb size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0" />
+                    )}
+                    <div className="flex-1 break-words space-y-1">
+                      {trimmed.split('\n').map((line, lIdx) => (
+                        <p key={lIdx}>{line.replace(/[*#]/g, '')}</p>
+                      ))}
+                    </div>
                   </div>
                 );
               })}

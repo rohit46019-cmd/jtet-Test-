@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import confetti from 'canvas-confetti';
 import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig, Question, formatDuration } from '../types';
 import { quizSessionService } from '../services/quizSessionService';
 import { phoneStorageService } from '../services/phoneStorageService';
@@ -203,6 +204,7 @@ const Quiz: React.FC<QuizProps> = ({
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState<string>('Wrong Answer Key');
   const [reportToast, setReportToast] = useState<string | null>(null);
+
 
   // Report AI Auditing State
   const [isAuditingReport, setIsAuditingReport] = useState(false);
@@ -544,6 +546,15 @@ const Quiz: React.FC<QuizProps> = ({
         return [...filtered, newAnswer];
       });
       setShowFeedback(true);
+
+      if (isCorrect) {
+        confetti({
+          particleCount: 110,
+          spread: 90,
+          origin: { y: 0.55 },
+          colors: ['#10b981', '#3b82f6', '#6366f1', '#f59e0b', '#ec4899']
+        });
+      }
     } else {
       // In TEST mode: Tapping an option selects choice, NO immediate correct answer/explanation revealed!
       setSelectedOption(optionIdx);
@@ -1293,6 +1304,8 @@ const Quiz: React.FC<QuizProps> = ({
           <span>{reportToast}</span>
         </div>
       )}
+
+
     </div>
   );
 };

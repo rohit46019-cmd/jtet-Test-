@@ -1,13 +1,12 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import crypto from 'crypto';
 
-export const PRIMARY_MODEL = 'gemini-3.7-flash';
+export const PRIMARY_MODEL = 'gemini-3.5-flash-lite';
 export const FALLBACK_MODELS = [
   'gemini-3.5-flash',
-  'gemini-3.1-flash-lite',
   'gemini-3.7-flash',
+  'gemini-3.1-flash-lite',
   'gemini-3.6-flash',
-  'gemini-3.5-flash-lite',
   'gemini-flash-latest'
 ];
 

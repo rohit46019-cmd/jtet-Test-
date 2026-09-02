@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import { 
   Trophy, CheckCircle2, XCircle, MinusCircle, Clock, Sparkles, 
   RotateCcw, Home, Bookmark, Award, Zap, BarChart3, ChevronDown, 
@@ -37,7 +38,6 @@ interface TestSummaryProps {
 
 const highlightQuestionText = (text: string) => {
   if (!text) return null;
-  // Return plain text without any highlight styling
   const cleanText = text.replace(/\*\*/g, '').replace(/\*/g, '');
   return <span>{cleanText}</span>;
 };
@@ -57,6 +57,17 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
 }) => {
   const [filter, setFilter] = useState<'ALL' | 'CORRECT' | 'INCORRECT' | 'SKIPPED'>('ALL');
   const [expandedQuestions, setExpandedQuestions] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (score.accuracy >= 40) {
+      confetti({
+        particleCount: 120,
+        spread: 100,
+        origin: { y: 0.4 },
+        colors: ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ec4899']
+      });
+    }
+  }, [score.accuracy]);
 
   const toggleExpand = (id: string) => {
     setExpandedQuestions(prev => ({ ...prev, [id]: !prev[id] }));
@@ -512,14 +523,14 @@ export const TestSummary: React.FC<TestSummaryProps> = ({
                       </div>
 
                       {/* Explanation & AI Teacher Bar */}
-                      <div className="p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/50 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed flex flex-col gap-2">
+                      <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed flex flex-col gap-2">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-blue-600 dark:text-blue-400 font-black text-[9.5px] uppercase tracking-wider flex items-center gap-1">
-                            <Sparkles size={12} className="text-amber-500" /> Explanation & Concept Breakdown
+                            <Sparkles size={12} className="text-amber-500" /> Explanation & Concept Insight
                           </span>
                           <button
                             onClick={() => onExplain(q, selectedIdx)}
-                            className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all shrink-0"
+                            className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs active:scale-95 transition-all shrink-0"
                           >
                             <Sparkles size={11} className="text-amber-300" /> AI Deep Concept
                           </button>
