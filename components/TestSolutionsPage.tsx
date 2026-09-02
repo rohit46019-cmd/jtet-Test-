@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, CheckCircle2, XCircle, Bookmark, Sparkles, 
-  ChevronLeft, ChevronRight, Check, X, Brain, Grid, RotateCcw
+  ChevronLeft, ChevronRight, Check, X, Brain, Grid, RotateCcw, Clock
 } from 'lucide-react';
-import { Quiz, UserAnswer, Question } from '../types';
+import { Quiz, UserAnswer, Question, formatDuration } from '../types';
 
 interface TestSolutionsPageProps {
   quiz: Quiz;
@@ -88,6 +88,7 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
       a.questionIndex !== undefined ? a.questionIndex === idx : a.questionId === q.id
     );
     const selectedIdx = userAnswer ? userAnswer.selectedOptionIndex : null;
+    const timeSpent = userAnswer?.timeSpent || 0;
     const isCorrect = selectedIdx === q.correctAnswerIndex;
     const isSkipped = selectedIdx === null;
     const isIncorrect = selectedIdx !== null && !isCorrect;
@@ -96,6 +97,7 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
       q,
       idx,
       selectedIdx,
+      timeSpent,
       isCorrect,
       isSkipped,
       isIncorrect
@@ -105,7 +107,7 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
   const currentItem = questionItems[currentQuestionIndex];
   if (!currentItem) return null;
 
-  const { q: currentQuestion, selectedIdx, isCorrect, isSkipped, isIncorrect } = currentItem;
+  const { q: currentQuestion, selectedIdx, timeSpent, isCorrect, isSkipped, isIncorrect } = currentItem;
   const isSaved = savedIds.has(currentQuestion.id);
 
   // Reattempt choice for current question
@@ -248,19 +250,14 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Reattempt Toggle Button */}
-          <button
-            onClick={handleToggleReattempt}
-            className={`px-2.5 py-1.5 rounded-xl font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all shadow-xs active:scale-95 shrink-0 ${
-              isReattemptMode 
-                ? 'bg-amber-500 text-white ring-2 ring-amber-400/50' 
-                : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30'
-            }`}
-            title={isReattemptMode ? "Show Answers" : "Hide Answers & Reattempt"}
+          {/* Question Spent Time Badge */}
+          <div 
+            className="px-2.5 py-1.5 bg-slate-800 border border-slate-700/70 rounded-xl text-slate-300 font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1 shrink-0 shadow-xs"
+            title="Time spent on this question during test"
           >
-            <RotateCcw size={12} />
-            <span>{isReattemptMode ? "Show Answers" : "Reattempt"}</span>
-          </button>
+            <Clock size={12} className="text-amber-400" />
+            <span>Spent: {formatDuration(timeSpent)}</span>
+          </div>
 
           {/* Status Badge */}
           {!isReattemptMode && (
@@ -330,17 +327,6 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
             }}
             className="w-full max-w-2xl mx-auto space-y-3.5"
           >
-            {/* Reattempt Notification Banner */}
-            {isReattemptMode && !hasReattempted && (
-              <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between text-amber-600 dark:text-amber-400 text-[11px] font-bold">
-                <span className="flex items-center gap-1.5">
-                  <RotateCcw size={13} className="animate-spin" style={{ animationDuration: '4s' }} />
-                  Reattempting Question #{currentQuestionIndex + 1} — Select an answer below
-                </span>
-                <span className="text-[9px] uppercase tracking-wider opacity-80">Answers Hidden</span>
-              </div>
-            )}
-
             {/* Question Text Box (Smaller, compact font sizes) */}
             <div className="bg-blue-50/40 dark:bg-slate-900 border border-blue-100 dark:border-slate-800 p-3.5 sm:p-4 rounded-xl shadow-xs">
               <div className="flex items-center justify-between mb-1.5">
@@ -353,7 +339,7 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
               </h3>
             </div>
 
-            {/* Options List (Smaller font size & reattempt logic) */}
+            {/* Options List */}
             <div className="space-y-2">
               {currentQuestion.options.map((opt, optIdx) => {
                 const isCorrectOption = optIdx === currentQuestion.correctAnswerIndex;
@@ -361,83 +347,67 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
                 const isSecondChoice = optIdx === reattemptChoice;
 
                 let optStyle = "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300";
+                let letterBg = "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400";
                 let badges: React.ReactNode[] = [];
 
                 if (isReattemptMode && !hasReattempted) {
                   // In reattempt mode BEFORE selecting: hide answers, show interactive hover
                   optStyle = "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 cursor-pointer active:scale-[0.99]";
                 } else if (isReattemptMode && hasReattempted) {
-                  // In reattempt mode AFTER selecting: show 1st Choice, 2nd Choice, and Right Answer
-                  const isRight = isCorrectOption;
-
-                  if (isFirstChoice && isSecondChoice) {
-                    // User picked same option both times
-                    if (isRight) {
+                  // Reattempt mode AFTER selecting:
+                  // - Green box for Correct Answer
+                  // - Gray box for 1st Attempt Answer
+                  // - Red box for 2nd Attempt Answer if Wrong (or if same & wrong)
+                  if (isSecondChoice) {
+                    if (isCorrectOption) {
                       optStyle = "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold ring-1 ring-emerald-500/30";
+                      letterBg = "bg-emerald-600 text-white";
                       badges.push(
-                        <span key="1st2nd-right" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-                          <Check size={10} /> 1st & 2nd Choice (Right Answer)
+                        <span key="2nd-correct" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                          <Check size={10} /> Correct
                         </span>
                       );
                     } else {
                       optStyle = "bg-rose-50 dark:bg-rose-950/50 border-rose-500 text-rose-950 dark:text-rose-100 font-bold ring-1 ring-rose-500/30";
+                      letterBg = "bg-rose-600 text-white";
                       badges.push(
-                        <span key="1st2nd-wrong" className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-                          <X size={10} /> 1st & 2nd Choice
+                        <span key="2nd-wrong" className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                          <X size={10} /> Wrong
                         </span>
                       );
                     }
-                  } else {
-                    if (isFirstChoice) {
-                      badges.push(
-                        <span key="1st" className="px-2 py-0.5 rounded-full bg-slate-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-                          1st Choice
-                        </span>
-                      );
-                    }
-                    if (isSecondChoice) {
-                      if (isRight) {
-                        badges.push(
-                          <span key="2nd-right" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-                            <Check size={10} /> 2nd Choice (Correct)
-                          </span>
-                        );
-                      } else {
-                        badges.push(
-                          <span key="2nd-wrong" className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-                            <X size={10} /> 2nd Choice
-                          </span>
-                        );
-                      }
-                    }
-                    if (isRight) {
-                      badges.push(
-                        <span key="right" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-                          <Check size={10} /> Right Answer
-                        </span>
-                      );
-                    }
-
-                    // Background styling for choices
-                    if (isRight) {
-                      optStyle = "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold ring-1 ring-emerald-500/30";
-                    } else if (isSecondChoice) {
-                      optStyle = "bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-950 dark:text-amber-100 font-bold";
-                    } else if (isFirstChoice) {
-                      optStyle = "bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold";
-                    }
+                  } else if (isFirstChoice && !isCorrectOption) {
+                    // 1st Attempt answer when wrong -> Gray box
+                    optStyle = "bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold";
+                    letterBg = "bg-slate-500 dark:bg-slate-700 text-white";
+                    badges.push(
+                      <span key="1st-ans" className="px-2 py-0.5 rounded-full bg-slate-500 dark:bg-slate-700 text-white text-[8px] font-black uppercase tracking-wider shrink-0">
+                        1st Ans
+                      </span>
+                    );
+                  } else if (isCorrectOption) {
+                    // Correct Answer box (when user's 2nd choice wasn't this correct option)
+                    optStyle = "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold ring-1 ring-emerald-500/30";
+                    letterBg = "bg-emerald-600 text-white";
+                    badges.push(
+                      <span key="right-ans" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
+                        <Check size={10} /> Correct
+                      </span>
+                    );
                   }
                 } else {
                   // Normal Review Mode (answers shown)
                   if (isCorrectOption) {
                     optStyle = "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-950 dark:text-emerald-100 font-bold ring-1 ring-emerald-500/30";
+                    letterBg = "bg-emerald-600 text-white";
                     badges.push(
                       <span key="normal-right" className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
-                        <Check size={10} /> Right Answer
+                        <Check size={10} /> Correct
                       </span>
                     );
                   } else if (isFirstChoice && !isCorrectOption) {
                     optStyle = "bg-rose-50 dark:bg-rose-950/50 border-rose-500 text-rose-950 dark:text-rose-100 font-bold ring-1 ring-rose-500/30";
+                    letterBg = "bg-rose-600 text-white";
                     badges.push(
                       <span key="normal-wrong" className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5 shrink-0">
                         <X size={10} /> Your Choice
@@ -457,19 +427,7 @@ export const TestSolutionsPage: React.FC<TestSolutionsPageProps> = ({
                     className={`py-2 px-3 sm:py-2.5 sm:px-3.5 rounded-xl border text-[11px] sm:text-xs flex items-center justify-between gap-2.5 transition-all ${optStyle}`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-extrabold text-[10px] shrink-0 ${
-                        !isReattemptMode && isCorrectOption 
-                          ? 'bg-emerald-600 text-white' 
-                          : !isReattemptMode && isFirstChoice 
-                          ? 'bg-rose-600 text-white' 
-                          : isReattemptMode && hasReattempted && isCorrectOption
-                          ? 'bg-emerald-600 text-white'
-                          : isReattemptMode && hasReattempted && isSecondChoice
-                          ? 'bg-amber-600 text-white'
-                          : isReattemptMode && hasReattempted && isFirstChoice
-                          ? 'bg-slate-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                      }`}>
+                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-extrabold text-[10px] shrink-0 ${letterBg}`}>
                         {String.fromCharCode(65 + optIdx)}
                       </span>
                       <span className="leading-snug break-words">{opt}</span>
