@@ -33,6 +33,7 @@ import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 import { UserProfileSettings } from './components/UserProfileSettings';
 
 const App: React.FC = () => {
+  const { user, isAdmin, loading: authLoading, login, loginAsGuest, logout, authError, updateUserProfile } = useAuth();
   const [appState, setAppState] = useState<AppState>('IDLE');
   const [tab, setTab] = useState<TabState>('HOME');
   const [quiz, setQuiz] = useState<QuizType | null>(null);
@@ -456,8 +457,6 @@ const App: React.FC = () => {
       setShowDownloadAppModal(true);
     }
   };
-
-  const { user, isAdmin, loading: authLoading, login, loginAsGuest, logout, authError, updateUserProfile } = useAuth();
 
   const loadDemoJson = () => {
     const demoObj = JSON.parse(jsonTemplate);

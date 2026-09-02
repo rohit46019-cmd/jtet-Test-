@@ -82,182 +82,86 @@ const DecoratedExplanation: React.FC<{
 }> = ({ explanation, onAskAi }) => {
   if (!explanation && !onAskAi) return null;
 
-  // Process and unescape all newline patterns (\n, \\n, /n, <br>)
   const normalizedText = normalizeExplanationText(explanation || '');
-  
-  // Split the explanation by distinct paragraph blocks
-  const rawSegments = normalizedText
+  const paragraphs = normalizedText
     .split(/\n+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
-
-  // Categorize segments to structure them beautifully
-  const correctOptionSegments: string[] = [];
-  const incorrectOptionSegments: string[] = [];
-  const bulletSegments: string[] = [];
-  const conceptualSegments: string[] = [];
-
-  rawSegments.forEach(segment => {
-    const lower = segment.toLowerCase();
-    
-    // Check if it's already a bullet list or numbered item
-    const isBullet = segment.startsWith('•') || segment.startsWith('-') || segment.startsWith('*') || /^\d+[\.\)]\s+/.test(segment);
-    const cleanSegment = isBullet ? segment.replace(/^[•\-\*\d\.\)]\s*/, '') : segment;
-
-    if (isBullet) {
-      bulletSegments.push(cleanSegment);
-    } else if (
-      lower.includes('correct because') || 
-      lower.includes('is correct') || 
-      lower.includes('correct option') || 
-      lower.includes('correct choice') || 
-      lower.includes('right answer') ||
-      lower.startsWith('correct:')
-    ) {
-      correctOptionSegments.push(cleanSegment);
-    } else if (
-      lower.includes('incorrect because') || 
-      lower.includes('is incorrect') || 
-      lower.includes('incorrect option') || 
-      lower.includes('wrong option') || 
-      lower.includes('not correct') ||
-      lower.startsWith('incorrect:')
-    ) {
-      incorrectOptionSegments.push(cleanSegment);
-    } else {
-      conceptualSegments.push(cleanSegment);
-    }
-  });
+    .map(p => p.trim())
+    .filter(p => p.length > 0);
 
   return (
-    <div className="p-5 sm:p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in slide-in-from-bottom-2 mb-6 text-left select-text relative overflow-hidden">
-      {/* Decorative Top Accent Tag */}
-      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-400 via-blue-500 to-indigo-500" />
-      
-      {/* Dynamic styles to ensure the scrollbar is completely invisible across all devices */}
-      <style dangerouslySetInnerHTML={{__html: `
-        .no-scrollbar::-webkit-scrollbar {
-          display: none !important;
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none !important;
-          scrollbar-width: none !important;
-        }
-      `}} />
-
-      {/* Header Section */}
-      <div className="flex items-center justify-between mb-5 border-b-2 border-slate-200 dark:border-slate-800 pb-3.5 flex-wrap gap-2 mt-1">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-blue-600 text-white rounded-xl shadow-md border border-black">
-            <Brain size={16} className="animate-pulse" />
+    <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 text-left select-text animate-in duration-200">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-lg">
+            <Brain size={16} />
           </div>
-          <div>
-            <span className="font-black text-sm uppercase tracking-tight text-slate-900 dark:text-white block">
-              Explanation & Insights
-            </span>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">
-              Concept breakdown and structured analysis
-            </span>
-          </div>
+          <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
+            Explanation & Concept Insight
+          </span>
         </div>
         
         {onAskAi && (
           <button
             onClick={onAskAi}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-[10px] uppercase tracking-wider border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-wider shadow-sm active:scale-95 transition-all"
           >
-            <Sparkles size={11} className="animate-pulse" />
-            <span>Ask AI Assistant</span>
+            <Sparkles size={11} />
+            <span>Ask AI</span>
           </button>
         )}
       </div>
 
-      {/* Main Content Area */}
-      <div className="space-y-4">
-        
-        {/* 1. Core Conceptual Takeaways (Distinct Paragraphs) */}
-        {conceptualSegments.length > 0 && (
-          <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
-              <h5 className="font-black text-[11px] uppercase tracking-wider text-blue-700 dark:text-blue-400">
-                📌 Core Lesson & Concept
-              </h5>
-            </div>
-            <div className="space-y-2.5 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
-              {conceptualSegments.map((segment, idx) => (
-                <p key={idx} className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-blue-100/80 dark:border-blue-900/30 break-words shadow-2xs">
-                  {renderFormattedText(segment)}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Content paragraphs - clean, structured, no heavy boxes */}
+      <div className="space-y-2.5 text-slate-700 dark:text-slate-300 text-xs sm:text-sm font-medium leading-relaxed">
+        {paragraphs.length > 0 ? (
+          paragraphs.map((para, idx) => {
+            const isBullet = para.startsWith('•') || para.startsWith('-') || para.startsWith('*') || /^\d+[\.\)]\s+/.test(para);
+            const cleanPara = isBullet ? para.replace(/^[•\-\*\d\.\)]\s*/, '') : para;
 
-        {/* 2. Correct Option Analysis */}
-        {correctOptionSegments.length > 0 && (
-          <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/15 rounded-2xl border-2 border-emerald-100 dark:border-emerald-900/30 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black text-[10px] shrink-0">
-                ✓
+            const lower = cleanPara.toLowerCase();
+            let labelType: 'correct' | 'incorrect' | 'note' | 'none' = 'none';
+            let contentText = cleanPara;
+
+            if (lower.startsWith('correct') || lower.startsWith('right answer') || lower.startsWith('सही')) {
+              labelType = 'correct';
+            } else if (lower.startsWith('incorrect') || lower.startsWith('wrong') || lower.startsWith('गलत') || lower.startsWith('ग़लत')) {
+              labelType = 'incorrect';
+            } else if (lower.startsWith('note') || lower.startsWith('important') || lower.startsWith('tip')) {
+              labelType = 'note';
+            }
+
+            return (
+              <div 
+                key={idx} 
+                className={`flex items-start gap-2.5 p-3 rounded-xl transition-all ${
+                  labelType === 'correct' 
+                    ? 'bg-emerald-50/70 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-200' 
+                    : labelType === 'incorrect'
+                    ? 'bg-rose-50/70 dark:bg-rose-950/20 text-rose-900 dark:text-rose-200'
+                    : labelType === 'note'
+                    ? 'bg-amber-50/70 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200'
+                    : 'bg-slate-50/80 dark:bg-slate-900/40'
+                }`}
+              >
+                {labelType === 'correct' ? (
+                  <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                ) : labelType === 'incorrect' ? (
+                  <XCircle size={16} className="text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
+                ) : labelType === 'note' ? (
+                  <Info size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0" />
+                )}
+                <div className="flex-1 break-words">
+                  {renderFormattedText(contentText)}
+                </div>
               </div>
-              <h5 className="font-black text-[11px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                ✅ Why It Is Correct
-              </h5>
-            </div>
-            <div className="space-y-2 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
-              {correctOptionSegments.map((segment, idx) => (
-                <div key={idx} className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-emerald-100/80 dark:border-emerald-900/30 break-words shadow-2xs">
-                  {renderFormattedText(segment)}
-                </div>
-              ))}
-            </div>
-          </div>
+            );
+          })
+        ) : (
+          <p className="text-slate-500 italic">No static explanation available. Click "Ask AI" for a detailed breakdown!</p>
         )}
-
-        {/* 3. Incorrect Option Breakdown */}
-        {incorrectOptionSegments.length > 0 && (
-          <div className="p-4 bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl border-2 border-rose-100 dark:border-rose-900/20 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center font-black text-[10px] shrink-0">
-                ✗
-              </div>
-              <h5 className="font-black text-[11px] uppercase tracking-wider text-rose-700 dark:text-rose-400">
-                ❌ Distractor Analysis (Why Others Are Incorrect)
-              </h5>
-            </div>
-            <div className="space-y-2 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
-              {incorrectOptionSegments.map((segment, idx) => (
-                <div key={idx} className="p-3 bg-white/70 dark:bg-slate-900/60 rounded-xl border border-rose-100/80 dark:border-rose-900/30 break-words shadow-2xs">
-                  {renderFormattedText(segment)}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 4. List Items / Key Points */}
-        {bulletSegments.length > 0 && (
-          <div className="p-4 bg-slate-100/50 dark:bg-slate-800/30 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" />
-              <h5 className="font-black text-[11px] uppercase tracking-wider text-slate-700 dark:text-slate-400">
-                💡 Key Insights & Takeaways
-              </h5>
-            </div>
-            <div className="space-y-2">
-              {bulletSegments.map((segment, idx) => (
-                <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-white/60 dark:bg-slate-900/40 rounded-xl border border-slate-200/60 dark:border-slate-800 text-xs sm:text-[13px] font-medium leading-relaxed text-slate-800 dark:text-slate-200 select-text">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0 shadow-sm animate-pulse" />
-                  <div className="flex-1 break-words">
-                    {renderFormattedText(segment)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
       </div>
     </div>
   );
