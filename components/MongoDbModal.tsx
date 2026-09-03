@@ -38,8 +38,14 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
     try {
       setLoading(true);
       const res = await fetch('/api/mongodb/status');
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = { error: text || 'Invalid server response' };
+      }
       if (res.ok) {
-        const data = await res.json();
         setMongoStatus(data);
         if (data.error && !data.connected) {
           setMessage({
@@ -49,6 +55,15 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
               : `Storage Notice: Running in Local Storage mode (${data.error})`
           });
         }
+      } else {
+        setMongoStatus({
+          connected: false,
+          databaseName: 'quizflash',
+          uriMasked: '',
+          storageType: 'local_file_cache',
+          error: data.error || text,
+          counts: { quizzes: 0, categories: 0, users: 0, uploadedFiles: 0 }
+        });
       }
     } catch (e) {
       console.error('Failed to fetch MongoDB status', e);
@@ -77,7 +92,14 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
         body: JSON.stringify({ uri: mongoUri.trim() })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = { error: text || 'Server returned invalid non-JSON response.' };
+      }
+
       if (res.ok) {
         setMessage({ type: 'success', text: data.message || 'Connected to MongoDB successfully!' });
         fetchStatus();
@@ -86,7 +108,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
       } else {
         setMessage({ 
           type: 'error', 
-          text: data.error || 'Failed to authenticate with MongoDB. Please verify username and password.' 
+          text: data.error || text || 'Failed to authenticate with MongoDB. Please verify username, password, and database cluster permissions.' 
         });
       }
     } catch (err: any) {
@@ -101,10 +123,15 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
       setLoading(true);
       setMessage(null);
       const res = await fetch('/api/mongodb/disconnect', { method: 'POST' });
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch (e) { data = { error: text }; }
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Reset to Local Storage mode.' });
+        setMessage({ type: 'success', text: data.message || 'Reset to Local Storage mode.' });
         fetchStatus();
         if (onSyncComplete) onSyncComplete();
+      } else {
+        setMessage({ type: 'error', text: data.error || text || 'Failed to disconnect' });
       }
     } catch (e: any) {
       setMessage({ type: 'error', text: 'Failed to disconnect' });
@@ -129,7 +156,10 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
         body: JSON.stringify({ quizzes, categories })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch (e) { data = { error: text }; }
+
       if (res.ok) {
         setMessage({
           type: 'success',
@@ -138,7 +168,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
         fetchStatus();
         if (onSyncComplete) onSyncComplete();
       } else {
-        setMessage({ type: 'error', text: 'Sync encountered an issue' });
+        setMessage({ type: 'error', text: data.error || text || 'Sync encountered an issue' });
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Sync failed' });

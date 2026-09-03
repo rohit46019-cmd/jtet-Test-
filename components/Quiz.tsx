@@ -195,6 +195,7 @@ const Quiz: React.FC<QuizProps> = ({
   const [showFeedback, setShowFeedback] = useState(false);
   const [timer, setTimer] = useState(initialTimer); // seconds elapsed
   const [questionTimer, setQuestionTimer] = useState<number>(effectiveTimePerQ > 0 ? effectiveTimePerQ : 0);
+  const [questionTimes, setQuestionTimes] = useState<Record<number, number>>({});
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -484,6 +485,27 @@ const Quiz: React.FC<QuizProps> = ({
     return () => clearInterval(qInterval);
   }, [isPaused, effectiveTimePerQ]);
 
+  // Track time spent per question
+  useEffect(() => {
+    if (isPaused) return;
+    const interval = setInterval(() => {
+      setQuestionTimes(prev => ({
+        ...prev,
+        [currentQuestionIndex]: (prev[currentQuestionIndex] || 0) + 1
+      }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [currentQuestionIndex, isPaused]);
+
+  // When per-question time expires, auto-show feedback / lock attempt
+  useEffect(() => {
+    if (effectiveTimePerQ > 0 && questionTimer === 0) {
+      if (mode === 'PRACTICE' && !showFeedback) {
+        setShowFeedback(true);
+      }
+    }
+  }, [questionTimer, effectiveTimePerQ, mode, showFeedback]);
+
   // Sync current question's state on question change
   useEffect(() => {
     if (!currentQuestion) {
@@ -524,13 +546,14 @@ const Quiz: React.FC<QuizProps> = ({
   // Option selection logic
   const handleOptionClick = (optionIdx: number) => {
     if (!currentQuestion) return;
+    if (effectiveTimePerQ > 0 && questionTimer === 0) return; // Cannot attempt if time expired
     const isCorrect = optionIdx === currentQuestion.correctAnswerIndex;
     const newAnswer: UserAnswer = {
       questionId: currentQuestion.id,
       questionIndex: currentQuestionIndex,
       selectedOptionIndex: optionIdx,
       isCorrect,
-      timeSpent: timer
+      timeSpent: questionTimes[currentQuestionIndex] || 0
     };
 
     if (mode === 'PRACTICE') {
@@ -922,6 +945,21 @@ const Quiz: React.FC<QuizProps> = ({
             }}
             className="w-full max-w-2xl mx-auto px-4 sm:px-0 space-y-4"
           >
+            {/* Time spent on current question */}
+            <div className="flex items-center justify-between px-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+               <span>Question {currentQuestionIndex + 1} of {quiz.isInfinite ? '∞' : quiz.questions.length}</span>
+               <span className="flex items-center gap-1 font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-900/50 shadow-2xs">
+                 ⏱️ Spent on this Q: {formatTime(questionTimes[currentQuestionIndex] || 0)}
+               </span>
+            </div>
+
+            {effectiveTimePerQ > 0 && questionTimer === 0 && (
+               <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-2xl text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center gap-2 animate-in fade-in">
+                  <AlertCircle size={16} className="text-rose-600 shrink-0" />
+                  <span>Per-question time limit finished! Question locked and cannot be attempted anymore.</span>
+               </div>
+            )}
+
             {/* Question Text with distinct background area and smart highlight */}
             <div className="bg-blue-50/45 dark:bg-slate-900 border border-blue-100/50 dark:border-slate-850 px-4 sm:px-5 py-4 rounded-2xl shadow-3xs whitespace-pre-wrap break-words">
               <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-relaxed">
@@ -948,7 +986,7 @@ const Quiz: React.FC<QuizProps> = ({
                 return (
                   <button 
                     key={idx} 
-                    disabled={mode === 'PRACTICE' && showFeedback} 
+                    disabled={(mode === 'PRACTICE' && showFeedback) || (effectiveTimePerQ > 0 && questionTimer === 0)} 
                     onClick={() => handleOptionClick(idx)} 
                     className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all flex items-center group ${btnStyle}`}
                   >
