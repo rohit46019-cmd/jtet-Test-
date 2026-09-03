@@ -290,7 +290,23 @@ async function connectToMongoDB(customUri?: string, forceRetry = false) {
       try {
         if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
         fs.writeFileSync(MONGO_CONFIG_FILE, JSON.stringify({ uri: customUri, updatedAt: Date.now() }, null, 2));
-      } catch (_) {}
+
+        // Also update .env file for robust persistence across server restarts
+        const envPath = path.join(process.cwd(), '.env');
+        let envContent = '';
+        if (fs.existsSync(envPath)) {
+          envContent = fs.readFileSync(envPath, 'utf-8');
+        }
+        if (envContent.includes('MONGODB_URI=')) {
+          envContent = envContent.replace(/^MONGODB_URI=.*$/gm, `MONGODB_URI=${customUri}`);
+        } else {
+          envContent += `\nMONGODB_URI=${customUri}\n`;
+        }
+        fs.writeFileSync(envPath, envContent);
+        process.env.MONGODB_URI = customUri;
+      } catch (e) {
+        console.error('Failed to save MongoDB URI to persistent storage:', e);
+      }
     }
 
     console.log('[Storage] Connected successfully to MongoDB database (quizflash).');
@@ -430,6 +446,16 @@ app.post('/api/mongodb/disconnect', async (req, res) => {
     if (fs.existsSync(MONGO_CONFIG_FILE)) {
       try { fs.unlinkSync(MONGO_CONFIG_FILE); } catch (_) {}
     }
+
+    const envPath = path.join(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      try {
+        let envContent = fs.readFileSync(envPath, 'utf-8');
+        envContent = envContent.replace(/^MONGODB_URI=.*$/gm, '');
+        fs.writeFileSync(envPath, envContent);
+      } catch (_) {}
+    }
+    process.env.MONGODB_URI = '';
 
     res.json({
       success: true,
@@ -1199,9 +1225,17 @@ app.post('/api/ai/generate-from-prompt', async (req, res) => {
   }
 });
 
-// --- VITE MIDDLEWARE SETUP ---
+// --- STATIC & VITE MIDDLEWARE SETUP ---
+const distPath = path.join(process.cwd(), 'dist');
+
+if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
+  app.use(express.static(distPath));
+  app.get('*all', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 async function startServer() {
-  // Connect to MongoDB in background without blocking server startup
   connectToMongoDB().catch(() => {});
 
   if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
@@ -1211,8 +1245,7 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    
     app.use(express.static(distPath));
     app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
@@ -1227,7 +1260,7 @@ async function startServer() {
 if (process.env.VERCEL !== '1') {
   startServer();
 } else {
-  // When running on Vercel, connect to MongoDB when the module loads
+  // When running on Vercel, connect to MongoDB when module loads
   connectToMongoDB().catch(() => {});
 }
 

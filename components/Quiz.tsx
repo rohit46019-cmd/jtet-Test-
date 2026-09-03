@@ -716,20 +716,33 @@ const Quiz: React.FC<QuizProps> = ({
               {mode === 'PRACTICE' ? 'Practice Mode' : 'Quiz Exam Mode'}
             </span>
 
-            {/* Timer Display */}
-            <div className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-800 text-emerald-400 font-extrabold text-[10px] border border-slate-750 shrink-0">
-              <Timer size={12} className="text-emerald-400 animate-pulse shrink-0" />
+            {/* Timer Display (Clickable to Pause/Resume) */}
+            <button 
+              onClick={() => setIsPaused(!isPaused)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-extrabold text-[10px] border shrink-0 transition-all cursor-pointer active:scale-95 ${
+                isPaused 
+                  ? 'bg-amber-500 text-white border-amber-400 animate-bounce shadow-md' 
+                  : 'bg-slate-800 text-emerald-400 border-slate-700 hover:bg-slate-750'
+              }`}
+              title={isPaused ? "Click to Resume Test" : "Click to Pause Test"}
+            >
+              <Timer size={12} className={`${isPaused ? 'text-white animate-spin' : 'text-emerald-400 animate-pulse'} shrink-0`} />
               <span>
-                {totalSecondsAllowed > 0 
-                  ? formatTime(remainingSeconds)
-                  : formatTime(timer)}
+                {isPaused 
+                  ? 'PAUSED (Click)' 
+                  : totalSecondsAllowed > 0 
+                    ? formatTime(remainingSeconds)
+                    : formatTime(timer)}
               </span>
-              {effectiveTimePerQ > 0 && (
-                <span className={`ml-1 pl-1 border-l border-slate-700 font-mono text-[9px] ${questionTimer <= 5 ? 'text-rose-500 font-black animate-pulse' : 'text-slate-400'}`}>
-                  {questionTimer}s
-                </span>
+              {effectiveTimePerQ > 0 && !isPaused && (
+                <div className="flex items-center gap-1 ml-1.5 pl-1.5 border-l border-slate-700 bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-lg border border-amber-500/30">
+                  <span className="text-[8px] uppercase tracking-wider font-black text-amber-400">Q-Time:</span>
+                  <span className={`font-mono text-[10px] ${questionTimer <= 5 ? 'text-rose-400 font-black animate-pulse' : 'text-amber-300 font-extrabold'}`}>
+                    {questionTimer}s
+                  </span>
+                </div>
               )}
-            </div>
+            </button>
           </div>
           
           <div className="flex-1 max-w-xs h-1 bg-slate-800 rounded-full overflow-hidden mx-2 hidden md:block">
@@ -737,18 +750,6 @@ const Quiz: React.FC<QuizProps> = ({
           </div>
 
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            <button 
-              onClick={() => setIsPaused(!isPaused)}
-              className={`px-2 py-1.5 rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center gap-1 transition-all shrink-0 ${
-                isPaused 
-                  ? 'bg-amber-500 text-white animate-bounce shadow-md' 
-                  : 'bg-slate-800 text-amber-400 border border-slate-700 hover:bg-slate-700'
-              }`}
-              title={isPaused ? "Resume Test" : "Pause Test"}
-            >
-              {isPaused ? <Play size={11} fill="currentColor" /> : <Timer size={11} />}
-              <span className="hidden sm:inline">{isPaused ? 'Resume' : 'Pause'}</span>
-            </button>
             <button 
               onClick={toggleFullscreen}
               className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-blue-400 transition-all hidden sm:block border border-slate-700 shrink-0"
@@ -945,14 +946,6 @@ const Quiz: React.FC<QuizProps> = ({
             }}
             className="w-full max-w-2xl mx-auto px-4 sm:px-0 space-y-4"
           >
-            {/* Time spent on current question */}
-            <div className="flex items-center justify-between px-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-               <span>Question {currentQuestionIndex + 1} of {quiz.isInfinite ? '∞' : quiz.questions.length}</span>
-               <span className="flex items-center gap-1 font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-900/50 shadow-2xs">
-                 ⏱️ Spent on this Q: {formatTime(questionTimes[currentQuestionIndex] || 0)}
-               </span>
-            </div>
-
             {effectiveTimePerQ > 0 && questionTimer === 0 && (
                <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-2xl text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center gap-2 animate-in fade-in">
                   <AlertCircle size={16} className="text-rose-600 shrink-0" />
