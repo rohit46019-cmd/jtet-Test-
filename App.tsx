@@ -28,7 +28,7 @@ import {
   ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
   ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe,
   Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw, Brain, CheckSquare,
-  Search, Loader2, ExternalLink, Check, AlertTriangle
+  Search, Loader2, ExternalLink, Check, AlertTriangle, Upload
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 import { UserProfileSettings } from './components/UserProfileSettings';
@@ -2020,49 +2020,126 @@ const App: React.FC = () => {
                   
                   {/* 2. FILE UPLOAD & IMPORT AREA */}
                   <div id="qf_upload_section" className="mt-6 pt-2">
+                    {/* Header Bar */}
                     <div className="flex items-center justify-between mb-3 px-1">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-white/90 flex items-center gap-1.5 drop-shadow-md">
-                        <Zap size={15} className="text-amber-400" /> IMPORT & CREATE QUIZZES
-                      </h3>
-                      <button
-                        onClick={() => setShowMongoModal(true)}
-                        className="text-[9px] font-black uppercase tracking-widest text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
-                      >
-                        <Database size={11} /> MongoDB Database
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
+                          <Zap size={13} fill="currentColor" />
+                        </div>
+                        <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-white/90 drop-shadow-md">
+                          CREATE & IMPORT QUIZZES
+                        </h3>
+                      </div>
+
+                      {/* Mode Toggle Switch */}
+                      <div className="flex items-center p-1 rounded-2xl bg-black/50 border border-white/10 backdrop-blur-xl">
+                        <button
+                          onClick={() => setShowPasteArea(false)}
+                          className={`px-3 py-1 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                            !showPasteArea
+                              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Upload size={11} /> File Upload
+                        </button>
+                        <button
+                          onClick={() => setShowPasteArea(true)}
+                          className={`px-3 py-1 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                            showPasteArea
+                              ? 'bg-gradient-to-r from-indigo-500 to-fuchsia-600 text-white shadow-md shadow-fuchsia-500/25'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <ClipboardList size={11} /> Paste Text/JSON
+                        </button>
+                      </div>
                     </div>
                     
                     {showPasteArea ? (
                       <div className="animate-in zoom-in-95 duration-300">
-                         <div className="p-4 rounded-[1.5rem] bg-gradient-to-br from-slate-900/90 via-indigo-950/70 to-slate-900/90 backdrop-blur-xl border border-indigo-500/30 shadow-2xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
-                            <div className="relative z-10">
-                              <div className="flex items-center justify-between mb-3">
-                                 <div>
-                                    <span className="text-[9.5px] font-black uppercase tracking-widest text-indigo-300">Smart-Detection Area</span>
-                                    <p className="text-[8.5px] text-white/60 font-bold uppercase mt-0.5">Paste JSON (Insta-Load) or Raw Study Text (AI Scan)</p>
+                         <div className="p-4 sm:p-5 rounded-[2rem] bg-gradient-to-br from-slate-900/95 via-indigo-950/80 to-[#070914] backdrop-blur-2xl border border-indigo-500/30 shadow-[0_0_35px_rgba(99,102,241,0.25)] relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-48 h-48 bg-fuchsia-500/15 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+                            <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-500/15 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none" />
+                            
+                            <div className="relative z-10 space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2 pb-1 border-b border-white/10">
+                                 <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] font-black uppercase tracking-widest">
+                                      <Brackets size={10} /> Smart-Detection Editor
+                                    </span>
+                                    <span className="text-[9px] text-slate-400 font-medium hidden sm:inline">
+                                      Paste JSON Quiz or raw notes
+                                    </span>
                                  </div>
-                                 <button onClick={() => setShowPasteArea(false)} className="text-white/50 hover:text-white transition-colors p-1.5 bg-white/10 rounded-full"><X size={14} /></button>
+                                 <div className="flex items-center gap-1.5">
+                                   <button
+                                     onClick={() => {
+                                       setPastedText(JSON.stringify({
+                                         title: "Sample General Science Test",
+                                         category: "Science",
+                                         subCategory: "Physics",
+                                         questions: [
+                                           {
+                                             question: "What is the speed of light in vacuum?",
+                                             options: ["3 x 10^8 m/s", "3 x 10^6 m/s", "1.5 x 10^8 m/s", "3 x 10^5 m/s"],
+                                             correctAnswer: "3 x 10^8 m/s",
+                                             explanation: "The speed of light in vacuum is exactly 299,792,458 m/s (~3 x 10^8 m/s)."
+                                           }
+                                         ]
+                                       }, null, 2));
+                                     }}
+                                     className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 text-[8.5px] font-bold uppercase transition-all flex items-center gap-1"
+                                     title="Insert sample JSON template"
+                                   >
+                                     <Sparkles size={10} className="text-amber-400" /> Insert Sample
+                                   </button>
+                                   {pastedText && (
+                                     <button 
+                                       onClick={() => setPastedText('')} 
+                                       className="px-2 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[8.5px] font-bold uppercase transition-all"
+                                     >
+                                       Clear
+                                     </button>
+                                   )}
+                                 </div>
                               </div>
-                              <textarea 
-                                value={pastedText}
-                                onChange={(e) => setPastedText(e.target.value)}
-                                placeholder="Paste JSON quiz or study notes here..."
-                                className="w-full h-40 p-3.5 bg-black/50 border border-indigo-500/20 rounded-2xl focus:ring-2 focus:ring-indigo-500/40 outline-none text-xs text-white/90 font-mono placeholder:text-white/30 transition-all resize-none"
-                              />
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+
+                              <div className="relative rounded-2xl overflow-hidden border border-indigo-500/30 focus-within:border-cyan-400/80 transition-colors shadow-inner">
+                                <textarea 
+                                  value={pastedText}
+                                  onChange={(e) => setPastedText(e.target.value)}
+                                  placeholder={`Paste JSON quiz array or raw study notes here...\n\nExample:\n{\n  "title": "Chemistry Quiz",\n  "questions": [...]\n}`}
+                                  className="w-full h-44 p-4 bg-black/60 text-xs sm:text-sm text-cyan-200 font-mono placeholder:text-slate-500 outline-none resize-none leading-relaxed selection:bg-indigo-600 selection:text-white"
+                                />
+                                <div className="absolute bottom-2 right-3 text-[9px] font-mono text-slate-500 pointer-events-none">
+                                  {pastedText.length} characters
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                                 <button 
                                   onClick={handlePasteProcess}
-                                  className="py-3 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-[9.5px] uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-white/10"
+                                  disabled={!pastedText.trim()}
+                                  className="py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black text-[10px] uppercase tracking-wider shadow-lg shadow-emerald-950/40 active:scale-95 transition-all flex items-center justify-center gap-2 border border-emerald-400/30 disabled:opacity-40 disabled:pointer-events-none"
                                 >
-                                  <Zap size={13} fill="currentColor" className="text-amber-400" /> Direct Process
+                                  <Zap size={14} fill="currentColor" className="text-emerald-200" /> Load & Parse Directly
                                 </button>
                                 <button 
                                   onClick={handleAuditAndFixPastedJson}
-                                  disabled={isAuditingPastedJson}
-                                  className="py-3 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black text-[9.5px] uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 border border-white/20"
+                                  disabled={!pastedText.trim() || isAuditingPastedJson}
+                                  className="py-3 px-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white rounded-xl font-black text-[10px] uppercase tracking-wider shadow-lg shadow-purple-950/40 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:pointer-events-none border border-fuchsia-400/30"
                                 >
-                                  <ShieldCheck size={13} className="text-emerald-300" /> Auto-Verify & Fix
+                                  {isAuditingPastedJson ? (
+                                    <>
+                                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                      AI Verifying Format...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ShieldCheck size={14} className="text-emerald-300" /> AI Auto-Audit & Fix
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </div>
@@ -2070,35 +2147,36 @@ const App: React.FC = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {/* Styled File Upload matching dark theme with colorful glow */}
-                        <div className="p-1 rounded-[1.75rem] bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-cyan-500/20 backdrop-blur-xl border border-indigo-500/30 shadow-2xl">
+                        {/* Upgraded Modern File Upload Box */}
+                        <div className="p-1 rounded-[2.25rem] bg-gradient-to-br from-cyan-500/20 via-indigo-500/15 to-fuchsia-500/20 backdrop-blur-2xl border border-indigo-500/30 shadow-[0_0_35px_rgba(99,102,241,0.25)]">
                            <FileUpload onFileSelect={handleFileSelect} isLoading={false} />
                         </div>
                         
+                        {/* Quick Action Pills */}
                         <div className="flex flex-wrap items-center justify-center gap-2 pb-6">
                            <button 
                              onClick={() => setShowPasteArea(true)}
-                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-lg bg-gradient-to-r from-blue-600/30 to-indigo-600/30 text-white hover:from-blue-600/50 hover:to-indigo-600/50 border border-indigo-500/30 active:scale-95"
+                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-md bg-gradient-to-r from-cyan-600/25 to-blue-600/25 text-cyan-200 hover:from-cyan-600/40 hover:to-blue-600/40 border border-cyan-500/30 active:scale-95"
                            >
-                             <ClipboardList size={14} className="text-cyan-400" /> Paste JSON / Text
+                             <ClipboardList size={13} className="text-cyan-400" /> Direct Text Paste
                            </button>
                            <button 
                              onClick={loadDemoJson}
-                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-lg bg-gradient-to-r from-amber-600/30 to-orange-600/30 text-white hover:from-amber-600/50 hover:to-orange-600/50 border border-amber-500/30 active:scale-95"
+                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-md bg-gradient-to-r from-amber-600/25 to-orange-600/25 text-amber-200 hover:from-amber-600/40 hover:to-orange-600/40 border border-amber-500/30 active:scale-95"
                            >
-                             <Zap size={14} className="text-amber-400" /> Demo JSON
+                             <Zap size={13} className="text-amber-400" /> Load Demo Quiz
                            </button>
                            <button 
                              onClick={() => setShowJsonInfo(true)}
-                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-lg bg-gradient-to-r from-purple-600/30 to-fuchsia-600/30 text-white hover:from-purple-600/50 hover:to-fuchsia-600/50 border border-purple-500/30 active:scale-95"
+                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-md bg-gradient-to-r from-purple-600/25 to-fuchsia-600/25 text-fuchsia-200 hover:from-purple-600/40 hover:to-fuchsia-600/40 border border-purple-500/30 active:scale-95"
                            >
-                             <Brackets size={14} className="text-fuchsia-400" /> JSON Format
+                             <Brackets size={13} className="text-fuchsia-400" /> JSON Format Guide
                            </button>
                            <button 
                              onClick={() => setShowMongoModal(true)}
-                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-lg bg-gradient-to-r from-emerald-600/30 to-teal-600/30 text-white hover:from-emerald-600/50 hover:to-teal-600/50 border border-emerald-500/30 active:scale-95"
+                             className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-md bg-gradient-to-r from-emerald-600/25 to-teal-600/25 text-emerald-200 hover:from-emerald-600/40 hover:to-teal-600/40 border border-emerald-500/30 active:scale-95"
                            >
-                             <Database size={14} className="text-emerald-400" /> MongoDB Sync
+                             <Database size={13} className="text-emerald-400" /> MongoDB Sync
                            </button>
                         </div>
                       </div>

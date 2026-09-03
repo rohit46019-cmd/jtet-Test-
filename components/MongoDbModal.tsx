@@ -13,6 +13,7 @@ interface MongoStatus {
   databaseName: string;
   uriMasked: string;
   storageType: string;
+  error?: string | null;
   counts: {
     quizzes: number;
     categories: number;
@@ -31,7 +32,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [mongoUri, setMongoUri] = useState('');
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const fetchStatus = async () => {
     try {
@@ -40,6 +41,14 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
       if (res.ok) {
         const data = await res.json();
         setMongoStatus(data);
+        if (data.error && !data.connected) {
+          setMessage({
+            type: 'info',
+            text: data.error.includes('auth') || data.error.includes('Authentication')
+              ? 'Authentication notice: App is running in Local Storage mode. To connect MongoDB Cloud, enter your cluster URI with valid credentials below.'
+              : `Storage Notice: Running in Local Storage mode (${data.error})`
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to fetch MongoDB status', e);
@@ -75,10 +84,30 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
         setMongoUri('');
         if (onSyncComplete) onSyncComplete();
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to connect to MongoDB' });
+        setMessage({ 
+          type: 'error', 
+          text: data.error || 'Failed to authenticate with MongoDB. Please verify username and password.' 
+        });
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Connection error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      setLoading(true);
+      setMessage(null);
+      const res = await fetch('/api/mongodb/disconnect', { method: 'POST' });
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Reset to Local Storage mode.' });
+        fetchStatus();
+        if (onSyncComplete) onSyncComplete();
+      }
+    } catch (e: any) {
+      setMessage({ type: 'error', text: 'Failed to disconnect' });
     } finally {
       setLoading(false);
     }
@@ -104,7 +133,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
       if (res.ok) {
         setMessage({
           type: 'success',
-          text: `✓ ${data.totalQuizzes || quizzes.length} Quizzes synchronized with MongoDB & Local Storage!`
+          text: `✓ ${data.totalQuizzes || quizzes.length} Quizzes synchronized with Storage!`
         });
         fetchStatus();
         if (onSyncComplete) onSyncComplete();
@@ -203,9 +232,11 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
           <div className={`p-3 rounded-xl mb-4 text-xs font-bold flex items-center gap-2 ${
             message.type === 'success' 
               ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
+              : message.type === 'info'
+              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
               : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
           }`}>
-            {message.type === 'success' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+            {message.type === 'success' ? <CheckCircle2 size={15} /> : message.type === 'info' ? <HardDrive size={15} /> : <AlertCircle size={15} />}
             <span>{message.text}</span>
           </div>
         )}
@@ -218,7 +249,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
                 <Sparkles size={14} className="text-indigo-500" /> Database Synchronization
               </h4>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Upload and backup all your quizzes and files into MongoDB database.
+                Upload and backup all your quizzes and files into the database.
               </p>
             </div>
           </div>
@@ -228,16 +259,27 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
             className="w-full mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Syncing to Database...' : 'Upload & Sync All Data to MongoDB'}
+            {syncing ? 'Syncing to Database...' : 'Upload & Sync All Data'}
           </button>
         </div>
 
         {/* MongoDB URI Input Form */}
         <form onSubmit={handleConnectMongo} className="space-y-3">
           <div>
-            <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-              MongoDB Connection URI
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                MongoDB Connection URI
+              </label>
+              {mongoStatus?.connected && (
+                <button
+                  type="button"
+                  onClick={handleDisconnect}
+                  className="text-[10px] text-rose-500 hover:text-rose-600 font-bold underline cursor-pointer"
+                >
+                  Disconnect MongoDB
+                </button>
+              )}
+            </div>
             <input
               type="password"
               value={mongoUri}
@@ -246,7 +288,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
               className="w-full px-3.5 py-2.5 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:border-emerald-500 font-mono"
             />
             <p className="text-[9px] text-slate-400 mt-1">
-              Example: mongodb+srv://admin:pass@cluster0.abcde.mongodb.net/quizflash
+              Format: mongodb+srv://username:password@cluster0.abcde.mongodb.net/quizflash
             </p>
           </div>
 

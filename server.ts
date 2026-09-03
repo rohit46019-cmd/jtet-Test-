@@ -215,8 +215,16 @@ function saveLocalData() {
 const MONGO_CONFIG_FILE = path.join(DATA_DIR, 'mongodb_config.json');
 
 function getActiveMongoUri(): string {
-  if (process.env.MONGODB_URI && (process.env.MONGODB_URI.startsWith('mongodb://') || process.env.MONGODB_URI.startsWith('mongodb+srv://'))) {
-    return process.env.MONGODB_URI;
+  const envUris = [
+    process.env.MONGODB_URI,
+    process.env.MONGO_URI,
+    process.env.MONGODB_URL,
+    process.env.DATABASE_URL
+  ];
+  for (const uri of envUris) {
+    if (uri && (uri.startsWith('mongodb://') || uri.startsWith('mongodb+srv://'))) {
+      return uri;
+    }
   }
   try {
     if (fs.existsSync(MONGO_CONFIG_FILE)) {
@@ -233,14 +241,29 @@ let activeMongoUri = getActiveMongoUri();
 let client: MongoClient | null = null;
 let db: any = null;
 let isConnectingMongo = false;
+let lastMongoError: string | null = null;
+const failedAuthUris = new Set<string>();
 
-async function connectToMongoDB(customUri?: string) {
+function cleanForMongo(obj: any) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const { _id, ...rest } = obj;
+  return rest;
+}
+
+async function connectToMongoDB(customUri?: string, forceRetry = false) {
   const uriToUse = customUri || activeMongoUri || getActiveMongoUri();
   if (!uriToUse || (!uriToUse.startsWith('mongodb://') && !uriToUse.startsWith('mongodb+srv://'))) {
     return null;
   }
-  
+
+  // If already connected with the same URI, return existing database
   if (db && !customUri) return db;
+
+  // If this URI already failed auth and forceRetry is false, skip repeated failed connections
+  if (!forceRetry && !customUri && failedAuthUris.has(uriToUse)) {
+    return null;
+  }
+
   if (isConnectingMongo) return db;
 
   isConnectingMongo = true;
@@ -252,13 +275,15 @@ async function connectToMongoDB(customUri?: string) {
     }
 
     const newClient = new MongoClient(uriToUse, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 4000,
+      connectTimeoutMS: 4000,
     });
     await newClient.connect();
     client = newClient;
     db = client.db('quizflash');
     activeMongoUri = uriToUse;
+    lastMongoError = null;
+    failedAuthUris.delete(uriToUse);
 
     // Save URI if customUri succeeded
     if (customUri) {
@@ -273,6 +298,13 @@ async function connectToMongoDB(customUri?: string) {
     return db;
   } catch (err: any) {
     isConnectingMongo = false;
+    const errMsg = err.message || String(err);
+    lastMongoError = errMsg;
+
+    if (errMsg.includes('auth') || errMsg.includes('Authentication') || errMsg.includes('bad auth')) {
+      failedAuthUris.add(uriToUse);
+    }
+
     if (client) {
       try {
         await client.close();
@@ -280,7 +312,10 @@ async function connectToMongoDB(customUri?: string) {
       client = null;
     }
     db = null;
-    console.log('[Storage] MongoDB connection attempt failed. Continuing on robust local storage cache:', err.message || err);
+
+    if (!failedAuthUris.has(uriToUse) || customUri) {
+      console.log('[Storage] MongoDB connection notice: Continuing on local storage cache:', errMsg);
+    }
     return null;
   }
 }
@@ -290,7 +325,8 @@ app.get('/api/health', async (req, res) => {
   res.json({
     status: 'ok',
     storageMode: db ? 'mongodb' : 'local_file_cache',
-    dbConnected: !!db
+    dbConnected: !!db,
+    mongoError: lastMongoError
   });
 });
 
@@ -315,6 +351,7 @@ app.get('/api/mongodb/status', async (req, res) => {
         databaseName: 'quizflash',
         uriMasked: maskedUri,
         storageType: 'MongoDB Cloud Atlas Database',
+        error: null,
         counts: {
           quizzes: quizCount,
           categories: catCount,
@@ -330,6 +367,7 @@ app.get('/api/mongodb/status', async (req, res) => {
     databaseName: 'Local Storage & Memory Cache',
     uriMasked: '',
     storageType: 'Local File Persistence',
+    error: lastMongoError,
     counts: {
       quizzes: localStore.quizzes.length,
       categories: localStore.categories.length,
@@ -347,21 +385,24 @@ app.post('/api/mongodb/connect', async (req, res) => {
   }
 
   try {
-    const database = await connectToMongoDB(uri);
+    failedAuthUris.delete(uri);
+    const database = await connectToMongoDB(uri, true);
     if (!database) {
-      return res.status(500).json({ error: 'Could not connect to MongoDB with provided URI. Check cluster credentials and network access.' });
+      return res.status(400).json({ 
+        error: lastMongoError || 'Could not authenticate with provided MongoDB URI. Please verify username, password, and database cluster permissions.' 
+      });
     }
 
     // Auto-sync existing local quizzes to MongoDB
     if (localStore.quizzes.length > 0) {
       for (const q of localStore.quizzes) {
-        await database.collection('quizzes').updateOne({ id: q.id }, { $set: q }, { upsert: true });
+        await database.collection('quizzes').updateOne({ id: q.id }, { $set: cleanForMongo(q) }, { upsert: true });
       }
     }
 
     if (localStore.categories.length > 0) {
       for (const c of localStore.categories) {
-        await database.collection('categories').updateOne({ id: c.id }, { $set: c }, { upsert: true });
+        await database.collection('categories').updateOne({ id: c.id }, { $set: cleanForMongo(c) }, { upsert: true });
       }
     }
 
@@ -372,6 +413,30 @@ app.post('/api/mongodb/connect', async (req, res) => {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to establish MongoDB connection' });
+  }
+});
+
+// MongoDB Disconnect endpoint
+app.post('/api/mongodb/disconnect', async (req, res) => {
+  try {
+    if (client) {
+      try { await client.close(); } catch (_) {}
+      client = null;
+    }
+    db = null;
+    activeMongoUri = '';
+    lastMongoError = null;
+
+    if (fs.existsSync(MONGO_CONFIG_FILE)) {
+      try { fs.unlinkSync(MONGO_CONFIG_FILE); } catch (_) {}
+    }
+
+    res.json({
+      success: true,
+      message: 'Disconnected from MongoDB. Operating smoothly on Local Storage mode.'
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to disconnect MongoDB' });
   }
 });
 
@@ -388,20 +453,20 @@ app.post('/api/mongodb/sync', async (req, res) => {
     if (database) {
       for (const q of targetQuizzes) {
         if (q && q.id) {
-          await database.collection('quizzes').updateOne({ id: q.id }, { $set: { ...q, updatedAt: Date.now() } }, { upsert: true });
+          await database.collection('quizzes').updateOne({ id: q.id }, { $set: { ...cleanForMongo(q), updatedAt: Date.now() } }, { upsert: true });
           syncedQuizCount++;
         }
       }
 
       for (const c of targetCategories) {
         if (c && c.id) {
-          await database.collection('categories').updateOne({ id: c.id }, { $set: c }, { upsert: true });
+          await database.collection('categories').updateOne({ id: c.id }, { $set: cleanForMongo(c) }, { upsert: true });
         }
       }
 
       for (const u of targetUsers) {
         if (u && u.id) {
-          await database.collection('users').updateOne({ id: u.id }, { $set: u }, { upsert: true });
+          await database.collection('users').updateOne({ id: u.id }, { $set: cleanForMongo(u) }, { upsert: true });
         }
       }
     }
@@ -470,7 +535,7 @@ app.post('/api/upload', async (req, res) => {
         if (savedQuizDoc) {
           await database.collection('quizzes').updateOne(
             { id: savedQuizDoc.id },
-            { $set: savedQuizDoc },
+            { $set: cleanForMongo(savedQuizDoc) },
             { upsert: true }
           );
         }
@@ -529,7 +594,7 @@ app.post('/api/quizzes', async (req, res) => {
     if (database) {
       await database.collection('quizzes').updateOne(
         { id: quizId },
-        { $set: docToSave },
+        { $set: cleanForMongo(docToSave) },
         { upsert: true }
       );
     }
@@ -638,7 +703,7 @@ app.post('/api/reports', async (req, res) => {
     if (database) {
       await database.collection('reports').updateOne(
         { id: reportId },
-        { $set: docToSave },
+        { $set: cleanForMongo(docToSave) },
         { upsert: true }
       );
     }
@@ -735,7 +800,7 @@ app.post('/api/categories', async (req, res) => {
     if (database) {
       await database.collection('categories').updateOne(
         { id: catId },
-        { $set: docToSave },
+        { $set: cleanForMongo(docToSave) },
         { upsert: true }
       );
     }
@@ -982,7 +1047,7 @@ app.post('/api/settings/quiz_config', async (req, res) => {
     if (database) {
       await database.collection('settings').updateOne(
         { key: 'quiz_config' },
-        { $set: toSave },
+        { $set: cleanForMongo(toSave) },
         { upsert: true }
       );
     }
