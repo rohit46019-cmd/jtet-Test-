@@ -212,29 +212,67 @@ function saveLocalData() {
 }
 
 // --- MONGODB CONNECTION WITH AUTO-FALLBACK ---
+const MONGO_CONFIG_FILE = path.join(DATA_DIR, 'mongodb_config.json');
+
+function getActiveMongoUri(): string {
+  if (process.env.MONGODB_URI && (process.env.MONGODB_URI.startsWith('mongodb://') || process.env.MONGODB_URI.startsWith('mongodb+srv://'))) {
+    return process.env.MONGODB_URI;
+  }
+  try {
+    if (fs.existsSync(MONGO_CONFIG_FILE)) {
+      const cfg = JSON.parse(fs.readFileSync(MONGO_CONFIG_FILE, 'utf-8'));
+      if (cfg.uri && (cfg.uri.startsWith('mongodb://') || cfg.uri.startsWith('mongodb+srv://'))) {
+        return cfg.uri;
+      }
+    }
+  } catch (e) {}
+  return '';
+}
+
+let activeMongoUri = getActiveMongoUri();
 let client: MongoClient | null = null;
 let db: any = null;
-let mongoAttemptDone = false;
+let isConnectingMongo = false;
 
-async function connectToMongoDB() {
-  if (!MONGODB_URI || (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://'))) {
+async function connectToMongoDB(customUri?: string) {
+  const uriToUse = customUri || activeMongoUri || getActiveMongoUri();
+  if (!uriToUse || (!uriToUse.startsWith('mongodb://') && !uriToUse.startsWith('mongodb+srv://'))) {
     return null;
   }
-  if (mongoAttemptDone && !db) return null;
-  if (db) return db;
+  
+  if (db && !customUri) return db;
+  if (isConnectingMongo) return db;
 
+  isConnectingMongo = true;
   try {
-    const newClient = new MongoClient(MONGODB_URI, {
-      serverSelectionTimeoutMS: 3000,
-      connectTimeoutMS: 3000,
+    if (client) {
+      try { await client.close(); } catch (_) {}
+      client = null;
+      db = null;
+    }
+
+    const newClient = new MongoClient(uriToUse, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
     });
     await newClient.connect();
     client = newClient;
     db = client.db('quizflash');
-    console.log('[Storage] Connected to MongoDB Atlas cluster.');
+    activeMongoUri = uriToUse;
+
+    // Save URI if customUri succeeded
+    if (customUri) {
+      try {
+        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+        fs.writeFileSync(MONGO_CONFIG_FILE, JSON.stringify({ uri: customUri, updatedAt: Date.now() }, null, 2));
+      } catch (_) {}
+    }
+
+    console.log('[Storage] Connected successfully to MongoDB database (quizflash).');
+    isConnectingMongo = false;
     return db;
   } catch (err: any) {
-    mongoAttemptDone = true;
+    isConnectingMongo = false;
     if (client) {
       try {
         await client.close();
@@ -242,7 +280,7 @@ async function connectToMongoDB() {
       client = null;
     }
     db = null;
-    console.log('[Storage] MongoDB cloud disabled or offline. Operating smoothly on resilient local file persistence.');
+    console.log('[Storage] MongoDB connection attempt failed. Continuing on robust local storage cache:', err.message || err);
     return null;
   }
 }
@@ -254,6 +292,202 @@ app.get('/api/health', async (req, res) => {
     storageMode: db ? 'mongodb' : 'local_file_cache',
     dbConnected: !!db
   });
+});
+
+// MongoDB Status endpoint
+app.get('/api/mongodb/status', async (req, res) => {
+  try {
+    const database = await connectToMongoDB();
+    if (database) {
+      const [quizCount, catCount, userCount, fileCount] = await Promise.all([
+        database.collection('quizzes').countDocuments().catch(() => 0),
+        database.collection('categories').countDocuments().catch(() => 0),
+        database.collection('users').countDocuments().catch(() => 0),
+        database.collection('quiz_files').countDocuments().catch(() => 0),
+      ]);
+
+      const maskedUri = activeMongoUri
+        ? activeMongoUri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@.+)/, '$1******$3')
+        : 'mongodb://cluster...';
+
+      return res.json({
+        connected: true,
+        databaseName: 'quizflash',
+        uriMasked: maskedUri,
+        storageType: 'MongoDB Cloud Atlas Database',
+        counts: {
+          quizzes: quizCount,
+          categories: catCount,
+          users: userCount,
+          uploadedFiles: fileCount
+        }
+      });
+    }
+  } catch (err) {}
+
+  res.json({
+    connected: false,
+    databaseName: 'Local Storage & Memory Cache',
+    uriMasked: '',
+    storageType: 'Local File Persistence',
+    counts: {
+      quizzes: localStore.quizzes.length,
+      categories: localStore.categories.length,
+      users: localStore.users.length,
+      uploadedFiles: 0
+    }
+  });
+});
+
+// MongoDB Connect / Save URI endpoint
+app.post('/api/mongodb/connect', async (req, res) => {
+  const { uri } = req.body;
+  if (!uri || (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://'))) {
+    return res.status(400).json({ error: 'Valid MongoDB Connection URI starting with mongodb:// or mongodb+srv:// is required' });
+  }
+
+  try {
+    const database = await connectToMongoDB(uri);
+    if (!database) {
+      return res.status(500).json({ error: 'Could not connect to MongoDB with provided URI. Check cluster credentials and network access.' });
+    }
+
+    // Auto-sync existing local quizzes to MongoDB
+    if (localStore.quizzes.length > 0) {
+      for (const q of localStore.quizzes) {
+        await database.collection('quizzes').updateOne({ id: q.id }, { $set: q }, { upsert: true });
+      }
+    }
+
+    if (localStore.categories.length > 0) {
+      for (const c of localStore.categories) {
+        await database.collection('categories').updateOne({ id: c.id }, { $set: c }, { upsert: true });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Successfully connected to MongoDB and synchronized database collections!',
+      databaseName: 'quizflash'
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to establish MongoDB connection' });
+  }
+});
+
+// MongoDB Sync All endpoint
+app.post('/api/mongodb/sync', async (req, res) => {
+  const { quizzes, categories, users } = req.body;
+  const targetQuizzes = Array.isArray(quizzes) && quizzes.length > 0 ? quizzes : localStore.quizzes;
+  const targetCategories = Array.isArray(categories) && categories.length > 0 ? categories : localStore.categories;
+  const targetUsers = Array.isArray(users) && users.length > 0 ? users : localStore.users;
+
+  let syncedQuizCount = 0;
+  try {
+    const database = await connectToMongoDB();
+    if (database) {
+      for (const q of targetQuizzes) {
+        if (q && q.id) {
+          await database.collection('quizzes').updateOne({ id: q.id }, { $set: { ...q, updatedAt: Date.now() } }, { upsert: true });
+          syncedQuizCount++;
+        }
+      }
+
+      for (const c of targetCategories) {
+        if (c && c.id) {
+          await database.collection('categories').updateOne({ id: c.id }, { $set: c }, { upsert: true });
+        }
+      }
+
+      for (const u of targetUsers) {
+        if (u && u.id) {
+          await database.collection('users').updateOne({ id: u.id }, { $set: u }, { upsert: true });
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('MongoDB sync error:', err);
+  }
+
+  // Always update local store
+  if (Array.isArray(quizzes) && quizzes.length > 0) localStore.quizzes = quizzes;
+  if (Array.isArray(categories) && categories.length > 0) localStore.categories = categories;
+  if (Array.isArray(users) && users.length > 0) localStore.users = users;
+  saveLocalData();
+
+  res.json({
+    success: true,
+    storageMode: db ? 'mongodb' : 'local_file_cache',
+    syncedQuizzes: syncedQuizCount,
+    totalQuizzes: localStore.quizzes.length
+  });
+});
+
+// File Upload & MongoDB Storage Endpoint
+app.post('/api/upload', async (req, res) => {
+  try {
+    const { fileName, fileType, rawContent, quizData, categoryId, subCategoryId } = req.body;
+    const fileId = new ObjectId().toString();
+    const timestamp = Date.now();
+
+    const fileDoc = {
+      id: fileId,
+      fileName: fileName || 'Uploaded File',
+      fileType: fileType || 'application/json',
+      uploadedAt: timestamp,
+      rawContentSnippet: typeof rawContent === 'string' ? rawContent.slice(0, 5000) : '',
+      categoryId: categoryId || null,
+      subCategoryId: subCategoryId || null
+    };
+
+    let savedQuizDoc: any = null;
+    if (quizData && Array.isArray(quizData.questions)) {
+      const quizId = quizData.id || new ObjectId().toString();
+      savedQuizDoc = {
+        ...quizData,
+        id: quizId,
+        sourceFileId: fileId,
+        sourceFileName: fileName,
+        createdAt: quizData.createdAt || timestamp,
+        updatedAt: timestamp
+      };
+
+      // Update local store
+      const existingIdx = localStore.quizzes.findIndex(q => q.id === quizId);
+      if (existingIdx >= 0) {
+        localStore.quizzes[existingIdx] = savedQuizDoc;
+      } else {
+        localStore.quizzes.unshift(savedQuizDoc);
+      }
+      saveLocalData();
+    }
+
+    // Persist to MongoDB
+    try {
+      const database = await connectToMongoDB();
+      if (database) {
+        await database.collection('quiz_files').insertOne(fileDoc);
+        if (savedQuizDoc) {
+          await database.collection('quizzes').updateOne(
+            { id: savedQuizDoc.id },
+            { $set: savedQuizDoc },
+            { upsert: true }
+          );
+        }
+      }
+    } catch (dbErr) {
+      console.warn('MongoDB file storage delayed:', dbErr);
+    }
+
+    res.json({
+      success: true,
+      file: fileDoc,
+      quiz: savedQuizDoc,
+      storage: db ? 'mongodb' : 'local_cache'
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'File upload processing failed' });
+  }
 });
 
 // --- QUIZZES API ---

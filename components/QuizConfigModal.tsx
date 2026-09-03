@@ -64,7 +64,7 @@ export const QuizConfigModal: React.FC<QuizConfigModalProps> = ({
           <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
             Configure Session Settings
           </span>
-          <h3 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white line-clamp-1 mt-0.5">
+          <h3 className={`text-base sm:text-lg font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'} line-clamp-1 mt-0.5`}>
             {quizTitle}
           </h3>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">

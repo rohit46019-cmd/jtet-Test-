@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 import { UserProfileSettings } from './components/UserProfileSettings';
+import { MongoDbModal } from './components/MongoDbModal';
 
 const App: React.FC = () => {
   const { user, isAdmin, loading: authLoading, login, loginAsGuest, logout, authError, updateUserProfile } = useAuth();
@@ -43,6 +44,8 @@ const App: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   const [showPhoneStorageModal, setShowPhoneStorageModal] = useState(false);
+  const [showMongoModal, setShowMongoModal] = useState(false);
+  const [mongoDbStatus, setMongoDbStatus] = useState<{ connected: boolean; storageType: string; counts?: any } | null>(null);
   const [showStoragePromptBanner, setShowStoragePromptBanner] = useState(false);
   const [storagePermissionGranted, setStoragePermissionGranted] = useState(phoneStorageService.getPermissionStatus() === 'granted');
   
@@ -68,7 +71,15 @@ const App: React.FC = () => {
     window.addEventListener('open-detailed-solutions', handleOpenDetailedSolutions);
     return () => window.removeEventListener('open-detailed-solutions', handleOpenDetailedSolutions);
   }, []);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('qf_theme');
+      if (saved) return saved === 'dark';
+      return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    } catch {
+      return true;
+    }
+  });
   const [isFullBrowser, setIsFullBrowser] = useState(false);
   const [showJsonInfo, setShowJsonInfo] = useState(false);
   const [showTopMenu, setShowTopMenu] = useState(false);
@@ -743,7 +754,18 @@ const App: React.FC = () => {
     // 2. Fetch fresh data from Cloud
     fetchQuizzes();
     fetchCategories();
+    fetchMongoStatus();
   }, []);
+
+  const fetchMongoStatus = async () => {
+    try {
+      const res = await fetch('/api/mongodb/status');
+      if (res.ok) {
+        const data = await res.json();
+        setMongoDbStatus(data);
+      }
+    } catch (e) {}
+  };
 
   const fetchCategories = async () => {
     try {
@@ -808,27 +830,47 @@ const App: React.FC = () => {
       localStorage.setItem('qf_lib_v4', JSON.stringify(updatedLib));
       setLibrary(updatedLib);
 
-      // Upload to MongoDB backend and wait for response
-      const res = await fetch('/api/quizzes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(localStoredQuiz)
-      });
+      // Upload to MongoDB backend via both endpoints to guarantee persistence
+      try {
+        const res = await fetch('/api/quizzes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(localStoredQuiz)
+        });
 
-      if (res.ok) {
-        const savedDoc = await res.json();
-        const currentLib = localStorage.getItem('qf_lib_v4');
-        const curLibArr = currentLib ? JSON.parse(currentLib) : [];
-        const filt = curLibArr.filter((q: StoredQuiz) => q.id !== savedDoc.id);
-        const finalUpd = [savedDoc, ...filt].slice(0, 100);
-        localStorage.setItem('qf_lib_v4', JSON.stringify(finalUpd));
-        setLibrary(finalUpd);
-        setSuccessMessage("Quiz successfully uploaded and sent to database!");
-        setTimeout(() => setSuccessMessage(null), 5000);
-      } else {
-        setSuccessMessage("Quiz successfully uploaded & synced locally!");
+        // Also push to upload collection
+        await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: `${newQuiz.title || 'quiz'}.json`,
+            fileType: 'application/json',
+            quizData: localStoredQuiz,
+            categoryId: newQuiz.categoryId,
+            subCategoryId: newQuiz.subCategoryId
+          })
+        }).catch(() => {});
+
+        if (res.ok) {
+          const savedDoc = await res.json();
+          const currentLib = localStorage.getItem('qf_lib_v4');
+          const curLibArr = currentLib ? JSON.parse(currentLib) : [];
+          const filt = curLibArr.filter((q: StoredQuiz) => q.id !== savedDoc.id);
+          const finalUpd = [savedDoc, ...filt].slice(0, 100);
+          localStorage.setItem('qf_lib_v4', JSON.stringify(finalUpd));
+          setLibrary(finalUpd);
+          setSuccessMessage("✓ Test & File saved to MongoDB Database & Cloud Sync!");
+          setTimeout(() => setSuccessMessage(null), 5000);
+          fetchMongoStatus();
+        } else {
+          setSuccessMessage("✓ Test successfully uploaded & synced locally!");
+          setTimeout(() => setSuccessMessage(null), 5000);
+        }
+      } catch (postErr) {
+        setSuccessMessage("✓ Test saved in local cache & pending database sync!");
         setTimeout(() => setSuccessMessage(null), 5000);
       }
+
       setAppState('IDLE');
     } catch (e) {
       console.error("Error saving quiz to library", e);
@@ -955,6 +997,19 @@ const App: React.FC = () => {
       if (file.type === 'application/json' || file.name.endsWith('.json')) {
         const text = await file.text();
         const imported = JSON.parse(text);
+        
+        // Log & backup file to MongoDB
+        fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: 'application/json',
+            rawContent: text,
+            quizData: Array.isArray(imported) ? { title: file.name.replace('.json', ''), questions: imported } : imported
+          })
+        }).catch(() => {});
+
         if (!processJsonQuiz(imported, file.name.replace('.json', ''))) {
           throw new Error("Invalid Quiz JSON format. Missing 'questions' array.");
         }
@@ -962,6 +1017,18 @@ const App: React.FC = () => {
         setAppState('PROCESSING_PDF');
         const text = await extractTextFromPDF(file);
         if (!text || text.length < 50) throw new Error("File content too short to analyze.");
+
+        // Log & backup PDF file extraction to MongoDB
+        fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: 'application/pdf',
+            rawContent: text.slice(0, 50000)
+          })
+        }).catch(() => {});
+
         processExtractedText(text);
       }
     } catch (err: any) {
@@ -1295,7 +1362,7 @@ const App: React.FC = () => {
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-300 ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#fcfdfe] text-slate-900'} antialiased overflow-x-hidden ${appState !== 'QUIZ_IN_PROGRESS' ? 'pt-14 sm:pt-16' : ''}`}>
       {appState !== 'QUIZ_IN_PROGRESS' && (
-        <header className="fixed top-0 left-0 right-0 z-[60] bg-slate-900 border-b-2 border-black px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2 text-white shadow-lg backdrop-blur-md">
+        <header className="fixed top-0 left-0 right-0 z-[60] bg-slate-900 border-b-2 border-black px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 text-white shadow-lg backdrop-blur-md">
           <div className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onClick={restart}>
               <button onClick={() => setShowTopMenu(!showTopMenu)} className="p-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 transition-all border border-slate-700" title="Menu">
                 <Menu size={18} />
@@ -1303,7 +1370,22 @@ const App: React.FC = () => {
               <img src="/icon.jpg" alt="Quiz Flash Logo" className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg shadow-sm object-cover border border-slate-700" referrerPolicy="no-referrer" />
              <h1 className="text-sm sm:text-base font-black uppercase tracking-tighter whitespace-nowrap text-white">Quiz <span className="text-blue-400">Flash</span></h1>
           </div>
+          
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+             {/* MongoDB Status Pill */}
+             <button
+               onClick={() => setShowMongoModal(true)}
+               className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all ${
+                 mongoDbStatus?.connected 
+                   ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/70' 
+                   : 'bg-amber-950/60 text-amber-300 border-amber-700/60 hover:bg-amber-900/70'
+               }`}
+               title="Click to view and configure MongoDB Database"
+             >
+               <Database size={11} className={mongoDbStatus?.connected ? 'text-emerald-400' : 'text-amber-400'} />
+               <span>{mongoDbStatus?.connected ? 'MongoDB Live' : 'Local DB Mode'}</span>
+             </button>
+
              {authLoading ? (
                <div className="h-4 w-4 rounded-full border-2 border-blue-400 border-t-transparent animate-spin mr-1"></div>
              ) : user ? (
@@ -1369,6 +1451,9 @@ const App: React.FC = () => {
                 </button>
                 <button onClick={() => { navigateTo('LEADERBOARD'); setShowTopMenu(false); }} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider transition-all ${tab === 'LEADERBOARD' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   <Trophy size={18} /> Rank
+                </button>
+                <button onClick={() => { setShowMongoModal(true); setShowTopMenu(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 transition-all">
+                  <Database size={18} className="text-emerald-500" /> MongoDB Database Sync
                 </button>
                 <button onClick={() => { setShowPhoneStorageModal(true); setShowTopMenu(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
                   <Smartphone size={18} className="text-blue-500" /> Phone Storage & Sync
@@ -1573,76 +1658,171 @@ const App: React.FC = () => {
        {appState === 'IDLE' && (
           <div className="animate-in fade-in duration-500">
             {tab === 'HOME' && (
-              <div className="relative min-h-screen -mx-4 -mt-16 pt-20 px-4 pb-24 bg-[#0B0D17] overflow-hidden">
-                {/* Space Background Effects */}
-                <div className="absolute inset-0 z-0 pointer-events-none">
-                   <div className="absolute top-[5%] left-[5%] w-64 h-64 bg-purple-600/30 rounded-full blur-[90px]"></div>
-                   <div className="absolute top-[30%] right-[0%] w-72 h-72 bg-blue-600/20 rounded-full blur-[100px]"></div>
-                   <div className="absolute bottom-[20%] left-[10%] w-80 h-80 bg-fuchsia-600/10 rounded-full blur-[120px]"></div>
-                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.15)_1px,transparent_1px)] bg-[size:40px_40px] opacity-30"></div>
+              <div className="relative min-h-screen -mx-4 -mt-16 pt-20 px-4 pb-24 bg-[#090B14] overflow-hidden">
+                {/* Colorful Glowing Ambient Mesh Background */}
+                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                   <div className="absolute -top-10 -left-10 w-80 h-80 bg-gradient-to-br from-violet-600/35 to-indigo-600/20 rounded-full blur-[100px] animate-pulse"></div>
+                   <div className="absolute top-1/4 -right-12 w-96 h-96 bg-gradient-to-bl from-cyan-500/25 to-blue-600/20 rounded-full blur-[110px]"></div>
+                   <div className="absolute top-2/3 -left-12 w-88 h-88 bg-gradient-to-tr from-rose-600/25 to-fuchsia-600/20 rounded-full blur-[120px]"></div>
+                   <div className="absolute bottom-10 right-10 w-80 h-80 bg-gradient-to-tl from-emerald-500/20 to-teal-600/20 rounded-full blur-[100px]"></div>
+                   <div className="absolute inset-0 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:32px_32px] opacity-15"></div>
                 </div>
 
                 <div className="relative z-10 space-y-4 max-w-3xl mx-auto pt-2">
-                  {/* Unified Hero Banner - Compact */}
-                  <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#2D1B6C] via-[#3C2792] to-[#5135B3] p-4 shadow-[0_0_30px_rgba(124,58,237,0.3)] border border-white/10 animate-in fade-in zoom-in duration-700">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-fuchsia-500/30 rounded-full blur-3xl -mr-10 -mt-10" />
-                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/30 rounded-full blur-3xl -ml-10 -mb-10" />
+                  {/* Colorful Hero Banner with Live Database Status */}
+                  <div className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-r from-violet-900/90 via-indigo-900/90 to-slate-900/90 p-5 shadow-[0_0_35px_rgba(99,102,241,0.35)] border border-violet-500/30 animate-in fade-in zoom-in duration-500">
+                    <div className="absolute -top-12 -right-12 w-40 h-40 bg-fuchsia-500/30 rounded-full blur-2xl pointer-events-none" />
+                    <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-cyan-500/30 rounded-full blur-2xl pointer-events-none" />
                     
-                    <div className="relative flex justify-between">
-                       <div className="flex items-center gap-3 z-10 w-full">
+                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                       <div className="flex items-center gap-3.5">
                           {user?.photoURL ? (
-                             <div className="w-12 h-12 shrink-0 rounded-[1rem] border-2 border-white/80 overflow-hidden shadow-xl drop-shadow-lg flex items-center justify-center bg-blue-900/50">
+                             <div className="w-14 h-14 shrink-0 rounded-2xl border-2 border-violet-300/80 overflow-hidden shadow-xl drop-shadow-lg flex items-center justify-center bg-violet-950/60 ring-4 ring-violet-500/20">
                                <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                              </div>
                           ) : (
-                             <div className="w-12 h-12 shrink-0 text-4xl drop-shadow-xl flex items-center justify-center">🎓</div>
+                             <div className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-tr from-violet-600 to-fuchsia-500 text-3xl shadow-lg ring-4 ring-violet-500/20 flex items-center justify-center drop-shadow-md">
+                               🎓
+                             </div>
                           )}
-                          <div className="flex-1 flex flex-col justify-center">
-                            <h2 className="text-lg font-black tracking-tight text-white leading-tight drop-shadow-sm">
-                              Hello, {user?.displayName || 'Learner'}!
-                            </h2>
-                            <p className="text-blue-100/90 text-[10px] sm:text-xs font-medium tracking-wide mt-0.5 mb-2 flex items-center gap-1 drop-shadow-sm">
-                              Ready to evolve today? <ArrowRight size={10}/>
-                            </p>
-                            <div className="w-[80%] sm:w-[60%] h-1 bg-white/20 rounded-full overflow-hidden shadow-inner backdrop-blur-sm">
-                               <div className="h-full bg-gradient-to-r from-amber-400 to-orange-400 w-[60%] rounded-full shadow-[0_0_10px_rgba(251,191,36,0.8)]"></div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h2 className="text-lg sm:text-xl font-black tracking-tight text-white leading-tight drop-shadow-sm">
+                                Hello, {user?.displayName || 'Learner'}!
+                              </h2>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500/30 to-orange-500/30 border border-amber-400/40 text-amber-300 font-black text-[8px] uppercase tracking-wider shadow-sm">
+                                <Sparkles size={9} className="text-amber-300" /> PRO
+                              </span>
                             </div>
+                            <p className="text-violet-200/90 text-xs font-medium tracking-wide mt-0.5 flex items-center gap-1">
+                              Ready to conquer tests & evolve today? <ArrowRight size={12} className="text-violet-400" />
+                            </p>
                           </div>
                        </div>
-                       <div className="absolute top-0 right-0 flex flex-col items-end z-20">
-                          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white/90 font-black text-[8px] uppercase tracking-widest shadow-sm">
-                            <Sparkles size={8} className="text-amber-300" /> PRO
-                          </div>
-                       </div>
-                       <div className="absolute bottom-0 right-0 z-20 mr-1 opacity-80">
-                          <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-blue-200 italic tracking-tight drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">
-                            Evolve<span className="text-fuchsia-300">*</span>
-                          </h3>
-                       </div>
+
+                       {/* MongoDB Live Sync Pill Button */}
+                       <button
+                         onClick={() => setShowMongoModal(true)}
+                         className={`px-3.5 py-2 rounded-2xl border shadow-lg backdrop-blur-md transition-all text-left flex items-center gap-2.5 active:scale-95 shrink-0 ${
+                           mongoDbStatus?.connected
+                             ? 'bg-emerald-950/60 hover:bg-emerald-900/70 border-emerald-500/50 text-emerald-200 shadow-emerald-950/40'
+                             : 'bg-amber-950/60 hover:bg-amber-900/70 border-amber-500/50 text-amber-200 shadow-amber-950/40'
+                         }`}
+                         title="Manage MongoDB Cloud Database"
+                       >
+                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-md ${
+                           mongoDbStatus?.connected ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
+                         }`}>
+                           <Database size={15} />
+                         </div>
+                         <div>
+                           <div className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                             <span className={`w-1.5 h-1.5 rounded-full animate-ping ${
+                               mongoDbStatus?.connected ? 'bg-emerald-400' : 'bg-amber-400'
+                             }`}></span>
+                             {mongoDbStatus?.connected ? 'MongoDB Live' : 'Local DB Active'}
+                           </div>
+                           <div className="text-[9px] opacity-75 font-medium">
+                             {mongoDbStatus?.connected ? `${mongoDbStatus?.counts?.quizzes ?? library.length} Tests in Database` : 'Click to connect Cloud DB'}
+                           </div>
+                         </div>
+                       </button>
+                    </div>
+
+                    {/* Quick Micro-Stats Grid */}
+                    <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/10">
+                      <div className="p-2 rounded-xl bg-white/5 backdrop-blur-md border border-white/5 text-center">
+                        <div className="text-xs sm:text-sm font-black text-white">{library.length}</div>
+                        <div className="text-[8.5px] font-bold text-violet-300 uppercase tracking-wider">Saved Quizzes</div>
+                      </div>
+                      <div className="p-2 rounded-xl bg-white/5 backdrop-blur-md border border-white/5 text-center">
+                        <div className="text-xs sm:text-sm font-black text-white">
+                          {library.reduce((acc, q) => acc + (q.questions?.length || 0), 0)}
+                        </div>
+                        <div className="text-[8.5px] font-bold text-cyan-300 uppercase tracking-wider">Total MCQs</div>
+                      </div>
+                      <div className="p-2 rounded-xl bg-white/5 backdrop-blur-md border border-white/5 text-center">
+                        <div className="text-xs sm:text-sm font-black text-white">{categories.filter(c => !c.parentId).length}</div>
+                        <div className="text-[8.5px] font-bold text-fuchsia-300 uppercase tracking-wider">Categories</div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Phone Storage Permission Request Banner - Compact */}
+                  {/* Colorful Quick Action Features Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {/* Action 1: AI Forge */}
+                    <button
+                      onClick={() => navigateTo('AI_PROMPT')}
+                      className="p-3.5 rounded-[1.25rem] bg-gradient-to-br from-violet-600/30 via-purple-600/20 to-fuchsia-600/20 hover:from-violet-600/40 hover:to-fuchsia-600/30 border border-violet-500/30 hover:border-violet-400/50 backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-600 to-fuchsia-600 text-white flex items-center justify-center shadow-md shadow-violet-500/30 group-hover:scale-110 transition-transform mb-2">
+                        <Sparkles size={18} />
+                      </div>
+                      <div className="text-xs font-black text-white group-hover:text-violet-200 transition-colors">AI Forge</div>
+                      <div className="text-[9px] text-violet-300/80 font-medium mt-0.5">Instant Quiz AI</div>
+                    </button>
+
+                    {/* Action 2: PDF & Docs */}
+                    <button
+                      onClick={() => {
+                        const el = document.getElementById('qf_upload_section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="p-3.5 rounded-[1.25rem] bg-gradient-to-br from-cyan-600/30 via-teal-600/20 to-blue-600/20 hover:from-cyan-600/40 hover:to-blue-600/30 border border-cyan-500/30 hover:border-cyan-400/50 backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-cyan-500/30 group-hover:scale-110 transition-transform mb-2">
+                        <FileType size={18} />
+                      </div>
+                      <div className="text-xs font-black text-white group-hover:text-cyan-200 transition-colors">PDF & Scan</div>
+                      <div className="text-[9px] text-cyan-300/80 font-medium mt-0.5">Document to MCQ</div>
+                    </button>
+
+                    {/* Action 3: JSON Paste */}
+                    <button
+                      onClick={() => setShowPasteArea(true)}
+                      className="p-3.5 rounded-[1.25rem] bg-gradient-to-br from-emerald-600/30 via-teal-600/20 to-green-600/20 hover:from-emerald-600/40 hover:to-green-600/30 border border-emerald-500/30 hover:border-emerald-400/50 backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/30 group-hover:scale-110 transition-transform mb-2">
+                        <ClipboardList size={18} />
+                      </div>
+                      <div className="text-xs font-black text-white group-hover:text-emerald-200 transition-colors">Paste JSON</div>
+                      <div className="text-[9px] text-emerald-300/80 font-medium mt-0.5">Direct Upload</div>
+                    </button>
+
+                    {/* Action 4: MongoDB Center */}
+                    <button
+                      onClick={() => setShowMongoModal(true)}
+                      className="p-3.5 rounded-[1.25rem] bg-gradient-to-br from-amber-600/30 via-orange-600/20 to-yellow-600/20 hover:from-amber-600/40 hover:to-yellow-600/30 border border-amber-500/30 hover:border-amber-400/50 backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/30 group-hover:scale-110 transition-transform mb-2">
+                        <Database size={18} />
+                      </div>
+                      <div className="text-xs font-black text-white group-hover:text-amber-200 transition-colors">Database</div>
+                      <div className="text-[9px] text-amber-300/80 font-medium mt-0.5">MongoDB Cloud</div>
+                    </button>
+                  </div>
+
+                  {/* Phone Storage Permission Request Banner */}
                   {showStoragePromptBanner && !storagePermissionGranted && (
-                    <div className="p-3 rounded-[1.25rem] bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white shadow-lg animate-in fade-in slide-in-from-top-4 duration-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="p-3.5 rounded-[1.25rem] bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white shadow-lg animate-in fade-in slide-in-from-top-4 duration-500 flex flex-col sm:flex-row items-center justify-between gap-3 border border-white/20">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
-                          <Smartphone size={16} className="text-white" />
+                        <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                          <Smartphone size={18} className="text-white" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
                              <span className="text-[7px] font-black uppercase tracking-widest bg-white/20 px-1.5 py-0.5 rounded-md">Device</span>
-                             <h4 className="font-black text-[11px] tracking-tight">Offline Cache</h4>
+                             <h4 className="font-black text-[11px] tracking-tight">Offline Persistence Active</h4>
                           </div>
                           <p className="text-[8px] text-blue-100 font-medium leading-tight mt-0.5">
-                            Grant storage permission to save quizzes offline.
+                            Quizzes will stay permanently saved and load instantly offline.
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                         <button 
                           onClick={handleGrantPhoneStorage}
-                          className="flex-1 sm:flex-none px-3 py-1.5 bg-white text-blue-700 hover:bg-blue-50 font-black text-[8px] uppercase tracking-widest rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                          className="flex-1 sm:flex-none px-3.5 py-1.5 bg-white text-blue-700 hover:bg-blue-50 font-black text-[8px] uppercase tracking-widest rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
                         >
                           <ShieldCheck size={12} /> Allow
                         </button>
@@ -1657,16 +1837,16 @@ const App: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Paused Session Resume Banner - Compact */}
+                  {/* Paused Session Resume Banner */}
                   {pausedSession && (
-                    <div className="p-4 rounded-[1.5rem] bg-gradient-to-br from-[#F57B36] to-[#E35D1F] text-white shadow-[0_0_20px_rgba(245,123,54,0.3)] border border-white/10 animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
+                    <div className="p-4 rounded-[1.5rem] bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 text-white shadow-[0_0_25px_rgba(245,123,54,0.4)] border border-white/20 animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
                       
                       <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                              <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/20 shadow-sm">
-                               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> PAUSED
+                               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> IN PROGRESS
                              </span>
                              <h4 className="font-black text-sm sm:text-base tracking-tight drop-shadow-sm truncate max-w-[200px]">{pausedSession.quiz.title}</h4>
                           </div>
@@ -1675,7 +1855,7 @@ const App: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <button 
                             onClick={() => resumePausedSession(pausedSession)}
-                            className="flex-1 sm:flex-none px-4 py-2 bg-white text-[#E35D1F] hover:bg-orange-50 font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                            className="flex-1 sm:flex-none px-4 py-2 bg-white text-orange-600 hover:bg-orange-50 font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-1.5"
                           >
                             <Play size={12} fill="currentColor" /> RESUME
                           </button>
@@ -1698,15 +1878,15 @@ const App: React.FC = () => {
                     </div>
                   )}
 
-                  {/* 1. TOP CATEGORIES SECTION - Compact Grid */}
-                  <div className="text-left mt-4">
+                  {/* 1. VIBRANT CATEGORIES SECTION WITH COLOR THEMES */}
+                  <div className="text-left mt-5">
                     <div className="flex items-center justify-between mb-3 px-1">
-                      <h3 className="text-[11px] font-black uppercase tracking-widest text-white/90 flex items-center gap-1.5 drop-shadow-md">
-                        <Sparkles size={14} className="text-purple-400" /> CATEGORIES
+                      <h3 className="text-xs font-black uppercase tracking-widest text-white/90 flex items-center gap-1.5 drop-shadow-md">
+                        <Sparkles size={15} className="text-fuchsia-400 animate-pulse" /> EXPLORE CATEGORIES
                       </h3>
                       <button 
                         onClick={() => navigateTo('LIBRARY')} 
-                        className="text-[9px] font-black uppercase tracking-widest text-white/80 hover:text-white bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 flex items-center gap-1 transition-all"
+                        className="text-[9.5px] font-black uppercase tracking-widest text-violet-300 hover:text-white bg-violet-950/40 hover:bg-violet-900/60 backdrop-blur-md px-3 py-1 rounded-full border border-violet-500/30 flex items-center gap-1 transition-all shadow-sm"
                       >
                         View All <ArrowRight size={10} />
                       </button>
@@ -1716,6 +1896,52 @@ const App: React.FC = () => {
                       {categories.filter(c => !c.parentId).map((cat, index) => {
                         const subCats = categories.filter(c => c.parentId === cat.id);
                         const catQuizCount = library.filter(q => q.categoryId === cat.id).length;
+
+                        // Distinct vibrant color themes for categories
+                        const themeGradients = [
+                          {
+                            bg: 'from-violet-900/40 via-purple-900/20 to-slate-900/60',
+                            border: 'border-violet-500/30 hover:border-violet-400/60',
+                            glow: 'shadow-violet-950/30',
+                            iconBg: 'from-violet-600 to-indigo-600',
+                            accentText: 'text-violet-300',
+                            chipBg: 'bg-violet-500/10 hover:bg-violet-500/20 border-violet-500/20 text-violet-200'
+                          },
+                          {
+                            bg: 'from-cyan-900/40 via-teal-900/20 to-slate-900/60',
+                            border: 'border-cyan-500/30 hover:border-cyan-400/60',
+                            glow: 'shadow-cyan-950/30',
+                            iconBg: 'from-cyan-500 to-teal-600',
+                            accentText: 'text-cyan-300',
+                            chipBg: 'bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/20 text-cyan-200'
+                          },
+                          {
+                            bg: 'from-rose-900/40 via-pink-900/20 to-slate-900/60',
+                            border: 'border-rose-500/30 hover:border-rose-400/60',
+                            glow: 'shadow-rose-950/30',
+                            iconBg: 'from-rose-500 to-pink-600',
+                            accentText: 'text-rose-300',
+                            chipBg: 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/20 text-rose-200'
+                          },
+                          {
+                            bg: 'from-amber-900/40 via-orange-900/20 to-slate-900/60',
+                            border: 'border-amber-500/30 hover:border-amber-400/60',
+                            glow: 'shadow-amber-950/30',
+                            iconBg: 'from-amber-500 to-orange-600',
+                            accentText: 'text-amber-300',
+                            chipBg: 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20 text-amber-200'
+                          },
+                          {
+                            bg: 'from-emerald-900/40 via-green-900/20 to-slate-900/60',
+                            border: 'border-emerald-500/30 hover:border-emerald-400/60',
+                            glow: 'shadow-emerald-950/30',
+                            iconBg: 'from-emerald-500 to-teal-600',
+                            accentText: 'text-emerald-300',
+                            chipBg: 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-200'
+                          }
+                        ];
+
+                        const theme = themeGradients[index % themeGradients.length];
 
                         const iconMap: Record<string, string> = {
                            'General Knowledge': '🌍',
@@ -1733,33 +1959,29 @@ const App: React.FC = () => {
                             return key ? iconMap[key] : '📁';
                         };
 
-                        const cardBgClasses = index % 2 === 0 
-                          ? "bg-gradient-to-br from-white/[0.08] to-white/[0.02]" 
-                          : "bg-gradient-to-br from-slate-400/[0.1] to-slate-500/[0.02]";
-
                         return (
                           <div 
                             key={cat.id}
-                            className={`relative p-3.5 sm:p-4 rounded-[1.5rem] ${cardBgClasses} backdrop-blur-xl border border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col justify-between`}
+                            className={`relative p-4 rounded-[1.5rem] bg-gradient-to-br ${theme.bg} backdrop-blur-xl border ${theme.border} shadow-lg ${theme.glow} overflow-hidden flex flex-col justify-between transition-all hover:scale-[1.01]`}
                           >
                             <div className="relative z-10">
-                                <div className="flex items-center gap-3 cursor-pointer group" onClick={() => {
+                                <div className="flex items-center gap-3.5 cursor-pointer group" onClick={() => {
                                   setSelectedCategoryFilter(cat.id);
                                   setSelectedSubCategoryFilter('ALL');
                                   navigateTo('LIBRARY');
                                 }}>
-                                  <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 shadow-inner flex items-center justify-center shrink-0 text-3xl drop-shadow-lg group-hover:scale-105 transition-transform">
+                                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${theme.iconBg} shadow-md flex items-center justify-center shrink-0 text-2xl drop-shadow-lg group-hover:scale-110 transition-transform`}>
                                      {cat.icon || getIcon(cat.name)}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <h4 className="font-black text-sm sm:text-base text-white mb-1 leading-tight drop-shadow-sm group-hover:text-blue-200 transition-colors truncate">{cat.name}</h4>
-                                    <div className="inline-flex px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white/70 border border-white/5 text-[8px] font-black uppercase tracking-widest shadow-inner">
+                                    <div className="inline-flex px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white/80 border border-white/10 text-[8.5px] font-black uppercase tracking-widest shadow-inner">
                                       {catQuizCount} Tests • {subCats.length > 0 ? subCats.length : 1} Topics
                                     </div>
                                   </div>
                                 </div>
 
-                                {/* Sub-categories chips - More Compact */}
+                                {/* Sub-categories chips */}
                                 {subCats.length > 0 && (
                                   <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-white/10">
                                     {subCats.slice(0, 4).map(sub => {
@@ -1772,7 +1994,7 @@ const App: React.FC = () => {
                                             setSelectedSubCategoryFilter(sub.id);
                                             navigateTo('LIBRARY');
                                           }}
-                                          className="px-2.5 py-1 rounded-lg text-[9px] font-bold bg-white/5 border border-white/10 text-white hover:bg-white/20 shadow-sm backdrop-blur-md transition-all flex items-center gap-1 group"
+                                          className={`px-2.5 py-1 rounded-lg text-[9px] font-bold ${theme.chipBg} border shadow-sm backdrop-blur-md transition-all flex items-center gap-1 group active:scale-95`}
                                         >
                                           {sub.name}
                                         </button>
@@ -1797,44 +2019,50 @@ const App: React.FC = () => {
                   </div>
                   
                   {/* 2. FILE UPLOAD & IMPORT AREA */}
-                  <div className="mt-6 pt-2">
+                  <div id="qf_upload_section" className="mt-6 pt-2">
                     <div className="flex items-center justify-between mb-3 px-1">
-                      <h3 className="text-[11px] font-black uppercase tracking-widest text-white/90 flex items-center gap-1.5 drop-shadow-md">
-                        <Zap size={14} className="text-amber-400" /> IMPORT & CREATE
+                      <h3 className="text-xs font-black uppercase tracking-widest text-white/90 flex items-center gap-1.5 drop-shadow-md">
+                        <Zap size={15} className="text-amber-400" /> IMPORT & CREATE QUIZZES
                       </h3>
+                      <button
+                        onClick={() => setShowMongoModal(true)}
+                        className="text-[9px] font-black uppercase tracking-widest text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                      >
+                        <Database size={11} /> MongoDB Database
+                      </button>
                     </div>
                     
                     {showPasteArea ? (
                       <div className="animate-in zoom-in-95 duration-300">
-                         <div className="p-4 rounded-[1.5rem] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10" />
+                         <div className="p-4 rounded-[1.5rem] bg-gradient-to-br from-slate-900/90 via-indigo-950/70 to-slate-900/90 backdrop-blur-xl border border-indigo-500/30 shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
                             <div className="relative z-10">
                               <div className="flex items-center justify-between mb-3">
                                  <div>
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Smart-Detection Area</span>
-                                    <p className="text-[8px] text-white/50 font-bold uppercase mt-0.5">Paste JSON (Insta-Load) or Raw Text (AI Scan)</p>
+                                    <span className="text-[9.5px] font-black uppercase tracking-widest text-indigo-300">Smart-Detection Area</span>
+                                    <p className="text-[8.5px] text-white/60 font-bold uppercase mt-0.5">Paste JSON (Insta-Load) or Raw Study Text (AI Scan)</p>
                                  </div>
-                                 <button onClick={() => setShowPasteArea(false)} className="text-white/40 hover:text-white transition-colors p-1 bg-white/5 rounded-full"><X size={14} /></button>
+                                 <button onClick={() => setShowPasteArea(false)} className="text-white/50 hover:text-white transition-colors p-1.5 bg-white/10 rounded-full"><X size={14} /></button>
                               </div>
                               <textarea 
                                 value={pastedText}
                                 onChange={(e) => setPastedText(e.target.value)}
-                                placeholder="Paste JSON or Study Text here..."
-                                className="w-full h-40 p-3 bg-black/40 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500/30 outline-none text-[11px] text-white/90 font-medium placeholder:text-white/20 transition-all resize-none"
+                                placeholder="Paste JSON quiz or study notes here..."
+                                className="w-full h-40 p-3.5 bg-black/50 border border-indigo-500/20 rounded-2xl focus:ring-2 focus:ring-indigo-500/40 outline-none text-xs text-white/90 font-mono placeholder:text-white/30 transition-all resize-none"
                               />
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                                 <button 
                                   onClick={handlePasteProcess}
-                                  className="py-2.5 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-[9px] uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-white/10"
+                                  className="py-3 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-[9.5px] uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-white/10"
                                 >
-                                  <Zap size={12} fill="currentColor" className="text-amber-400" /> Direct Process
+                                  <Zap size={13} fill="currentColor" className="text-amber-400" /> Direct Process
                                 </button>
                                 <button 
                                   onClick={handleAuditAndFixPastedJson}
                                   disabled={isAuditingPastedJson}
-                                  className="py-2.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black text-[9px] uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 border border-white/20"
+                                  className="py-3 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black text-[9.5px] uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 border border-white/20"
                                 >
-                                  <ShieldCheck size={12} className="text-emerald-300" /> Auto-Verify & Fix
+                                  <ShieldCheck size={13} className="text-emerald-300" /> Auto-Verify & Fix
                                 </button>
                               </div>
                             </div>
@@ -1842,29 +2070,35 @@ const App: React.FC = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {/* Styled File Upload matching dark theme */}
-                        <div className="p-1 rounded-[1.5rem] bg-white/5 backdrop-blur-xl border border-white/10 shadow-lg">
+                        {/* Styled File Upload matching dark theme with colorful glow */}
+                        <div className="p-1 rounded-[1.75rem] bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-cyan-500/20 backdrop-blur-xl border border-indigo-500/30 shadow-2xl">
                            <FileUpload onFileSelect={handleFileSelect} isLoading={false} />
                         </div>
                         
                         <div className="flex flex-wrap items-center justify-center gap-2 pb-6">
                            <button 
                              onClick={() => setShowPasteArea(true)}
-                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow-lg bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-lg bg-gradient-to-r from-blue-600/30 to-indigo-600/30 text-white hover:from-blue-600/50 hover:to-indigo-600/50 border border-indigo-500/30 active:scale-95"
                            >
-                             <ClipboardList size={14} className="text-blue-400" /> Paste JSON / Text
+                             <ClipboardList size={14} className="text-cyan-400" /> Paste JSON / Text
                            </button>
                            <button 
                              onClick={loadDemoJson}
-                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow-lg bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-lg bg-gradient-to-r from-amber-600/30 to-orange-600/30 text-white hover:from-amber-600/50 hover:to-orange-600/50 border border-amber-500/30 active:scale-95"
                            >
                              <Zap size={14} className="text-amber-400" /> Demo JSON
                            </button>
                            <button 
                              onClick={() => setShowJsonInfo(true)}
-                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all shadow-lg bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-lg bg-gradient-to-r from-purple-600/30 to-fuchsia-600/30 text-white hover:from-purple-600/50 hover:to-fuchsia-600/50 border border-purple-500/30 active:scale-95"
                            >
-                             <Brackets size={14} className="text-indigo-400" /> Format
+                             <Brackets size={14} className="text-fuchsia-400" /> JSON Format
+                           </button>
+                           <button 
+                             onClick={() => setShowMongoModal(true)}
+                             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-black text-[9.5px] uppercase tracking-widest transition-all shadow-lg bg-gradient-to-r from-emerald-600/30 to-teal-600/30 text-white hover:from-emerald-600/50 hover:to-teal-600/50 border border-emerald-500/30 active:scale-95"
+                           >
+                             <Database size={14} className="text-emerald-400" /> MongoDB Sync
                            </button>
                         </div>
                       </div>
@@ -2074,22 +2308,22 @@ const App: React.FC = () => {
                                      type="text" 
                                      value={editingTitleText} 
                                      onChange={e => setEditingTitleText(e.target.value)} 
-                                     className="w-full px-2 py-0.5 text-[10px] font-bold border rounded bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500"
+                                     className={`w-full px-2 py-0.5 text-[10px] font-bold border rounded outline-none focus:ring-1 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-800 text-white border-slate-700' : 'bg-slate-50 text-slate-900 border-slate-200'}`}
                                    />
                                    <button onClick={(e) => saveRenameQuiz(q.id, e)} className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-wider shrink-0">Save</button>
                                  </div>
                                ) : (
                                  <div>
-                                   <h4 className="font-bold text-[10px] sm:text-[10.5px] text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate" title={q.title}>{q.title}</h4>
+                                   <h4 className={`font-bold text-[10px] sm:text-[10.5px] ${isDarkMode ? 'text-slate-100' : 'text-slate-900'} group-hover:text-blue-500 transition-colors truncate`} title={q.title}>{q.title}</h4>
                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
                                       <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">{q.questions.length} Qs</span>
                                       {catObj && (
-                                        <span className="text-[6.5px] font-bold px-1 py-0.2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                                        <span className={`text-[6.5px] font-bold px-1 py-0.2 rounded border ${isDarkMode ? 'bg-blue-950/60 text-blue-300 border-blue-900/50' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
                                           {catObj.name}
                                         </span>
                                       )}
                                       {subCatObj && (
-                                        <span className="text-[6.5px] font-bold px-1 py-0.2 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                                        <span className={`text-[6.5px] font-bold px-1 py-0.2 rounded border ${isDarkMode ? 'bg-emerald-950/60 text-emerald-300 border-emerald-900/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
                                           {subCatObj.name}
                                         </span>
                                       )}
@@ -2874,8 +3108,23 @@ const App: React.FC = () => {
           onForceSync={async () => {
             await fetchQuizzes();
             await fetchCategories();
+            await fetchMongoStatus();
             setSuccessMessage("✓ Dual-Sync completed with MongoDB & Local Storage!");
             setTimeout(() => setSuccessMessage(null), 4000);
+          }}
+        />
+      )}
+
+      {/* MONGODB CLOUD DATABASE MODAL */}
+      {showMongoModal && (
+        <MongoDbModal
+          isOpen={showMongoModal}
+          onClose={() => setShowMongoModal(false)}
+          isDarkMode={isDarkMode}
+          onSyncComplete={async () => {
+            await fetchQuizzes();
+            await fetchCategories();
+            await fetchMongoStatus();
           }}
         />
       )}

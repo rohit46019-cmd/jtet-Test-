@@ -983,7 +983,7 @@ export default function AdminPanel({ categories: externalCategories, onCategorie
               return (
                 <div key={q.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-2 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/30 dark:bg-slate-800/15 gap-2">
                   <div className="min-w-0 flex-1">
-                    <h4 className="font-bold text-xs truncate text-slate-900 dark:text-white">{q.title}</h4>
+                    <h4 className="font-bold text-xs truncate text-slate-900 dark:text-slate-100">{q.title}</h4>
                     <p className="text-[9px] text-slate-400 font-medium">{q.questions?.length || 0} MCQs • ID: {String(q.id).slice(0, 8)}...</p>
                   </div>
 
