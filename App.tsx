@@ -880,7 +880,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateQuiz = (updatedQuiz: Quiz) => {
+  const handleUpdateQuiz = (updatedQuiz: StoredQuiz) => {
     setQuiz(updatedQuiz);
     setLibrary(prev => {
       const exists = prev.some(q => q.id === updatedQuiz.id);
@@ -1397,8 +1397,7 @@ const App: React.FC = () => {
                </div>
              ) : (
                <div className="flex items-center gap-1">
-                 <button onClick={login} className="px-2.5 py-1 rounded-xl bg-blue-600 text-white font-black text-[9.5px] uppercase tracking-wider hover:bg-blue-500 transition-all shrink-0 border border-blue-500">Google Login</button>
-                 <button onClick={loginAsGuest} className="px-2 py-1 rounded-xl bg-slate-800 text-slate-300 font-bold text-[8.5px] uppercase hover:bg-slate-700 transition-all">Guest</button>
+                 <button onClick={loginAsGuest} className="px-2.5 py-1 rounded-xl bg-blue-600 text-white font-black text-[9.5px] uppercase tracking-wider hover:bg-blue-500 transition-all shrink-0 border border-blue-500">Start Learning</button>
                </div>
              )}
              <button onClick={toggleFullscreen} className="p-1.5 sm:p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white transition-all border border-slate-700" title="Full Screen">
@@ -1411,13 +1410,7 @@ const App: React.FC = () => {
         </header>
       )}
 
-      {/* Vercel Login Warning/Notification Banner if any */}
-      {authError && (
-        <div className="max-w-4xl mx-auto px-3 py-1.5 mt-2 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[9.5px] rounded-xl flex items-center justify-between gap-2 animate-in fade-in">
-          <span>{authError}</span>
-          <button onClick={loginAsGuest} className="px-2 py-0.5 bg-amber-500 text-white font-black text-[8px] uppercase rounded-lg shrink-0">Continue as Guest</button>
-        </div>
-      )}
+
 
       {/* 3-Line Dropdown Menu Modal - Half Screen Slide-in */}
       {showTopMenu && (
@@ -1658,19 +1651,19 @@ const App: React.FC = () => {
        {appState === 'IDLE' && (
           <div className="animate-in fade-in duration-500">
             {tab === 'HOME' && (
-              <div className="relative min-h-screen -mx-4 -mt-16 pt-20 px-4 pb-24 bg-[#090B14] overflow-hidden">
+              <div className={`relative min-h-screen -mx-4 -mt-16 pt-20 px-4 pb-24 overflow-hidden ${isDarkMode ? 'bg-[#090B14]' : 'bg-[#f8fafc]'}`}>
                 {/* Colorful Glowing Ambient Mesh Background */}
                 <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
                    <div className="absolute -top-10 -left-10 w-80 h-80 bg-gradient-to-br from-violet-600/35 to-indigo-600/20 rounded-full blur-[100px] animate-pulse"></div>
                    <div className="absolute top-1/4 -right-12 w-96 h-96 bg-gradient-to-bl from-cyan-500/25 to-blue-600/20 rounded-full blur-[110px]"></div>
                    <div className="absolute top-2/3 -left-12 w-88 h-88 bg-gradient-to-tr from-rose-600/25 to-fuchsia-600/20 rounded-full blur-[120px]"></div>
                    <div className="absolute bottom-10 right-10 w-80 h-80 bg-gradient-to-tl from-emerald-500/20 to-teal-600/20 rounded-full blur-[100px]"></div>
-                   <div className="absolute inset-0 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:32px_32px] opacity-15"></div>
+                   <div className={`absolute inset-0 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:32px_32px] ${isDarkMode ? 'opacity-15' : 'opacity-5'}`}></div>
                 </div>
 
                 <div className="relative z-10 space-y-4 max-w-3xl mx-auto pt-2">
                   {/* Colorful Hero Banner with Live Database Status */}
-                  <div className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-r from-violet-900/90 via-indigo-900/90 to-slate-900/90 p-5 shadow-[0_0_35px_rgba(99,102,241,0.35)] border border-violet-500/30 animate-in fade-in zoom-in duration-500">
+                  <div className={`relative overflow-hidden rounded-[1.75rem] p-5 shadow-xl border animate-in fade-in zoom-in duration-500 ${isDarkMode ? 'bg-gradient-to-r from-violet-900/90 via-indigo-900/90 to-slate-900/90 shadow-[0_0_35px_rgba(99,102,241,0.35)] border-violet-500/30 text-white' : 'bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 shadow-xl border-violet-300 text-white'}`}>
                     <div className="absolute -top-12 -right-12 w-40 h-40 bg-fuchsia-500/30 rounded-full blur-2xl pointer-events-none" />
                     <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-cyan-500/30 rounded-full blur-2xl pointer-events-none" />
                     
@@ -1695,7 +1688,7 @@ const App: React.FC = () => {
                               </span>
                             </div>
                             <p className="text-violet-200/90 text-xs font-medium tracking-wide mt-0.5 flex items-center gap-1">
-                              Ready to conquer tests & evolve today? <ArrowRight size={12} className="text-violet-400" />
+                              Ready to conquer tests & evolve today? <ArrowRight size={12} className={`transition-colors ${isDarkMode ? 'text-violet-400' : 'text-violet-200'}`} />
                             </p>
                           </div>
                        </div>
@@ -1730,18 +1723,18 @@ const App: React.FC = () => {
                     </div>
 
                     {/* Quick Micro-Stats Grid */}
-                    <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/10">
-                      <div className="p-2 rounded-xl bg-white/5 backdrop-blur-md border border-white/5 text-center">
+                    <div className={`grid grid-cols-3 gap-2 mt-4 pt-3 border-t ${isDarkMode ? 'border-white/10' : 'border-white/20'}`}>
+                      <div className={`p-2 rounded-xl backdrop-blur-md border text-center ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white/20 border-white/30 shadow-sm drop-shadow-sm'}`}>
                         <div className="text-xs sm:text-sm font-black text-white">{library.length}</div>
                         <div className="text-[8.5px] font-bold text-violet-300 uppercase tracking-wider">Saved Quizzes</div>
                       </div>
-                      <div className="p-2 rounded-xl bg-white/5 backdrop-blur-md border border-white/5 text-center">
+                      <div className={`p-2 rounded-xl backdrop-blur-md border text-center ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white/20 border-white/30 shadow-sm drop-shadow-sm'}`}>
                         <div className="text-xs sm:text-sm font-black text-white">
                           {library.reduce((acc, q) => acc + (q.questions?.length || 0), 0)}
                         </div>
                         <div className="text-[8.5px] font-bold text-cyan-300 uppercase tracking-wider">Total MCQs</div>
                       </div>
-                      <div className="p-2 rounded-xl bg-white/5 backdrop-blur-md border border-white/5 text-center">
+                      <div className={`p-2 rounded-xl backdrop-blur-md border text-center ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white/20 border-white/30 shadow-sm drop-shadow-sm'}`}>
                         <div className="text-xs sm:text-sm font-black text-white">{categories.filter(c => !c.parentId).length}</div>
                         <div className="text-[8.5px] font-bold text-fuchsia-300 uppercase tracking-wider">Categories</div>
                       </div>
@@ -1753,13 +1746,13 @@ const App: React.FC = () => {
                     {/* Action 1: AI Forge */}
                     <button
                       onClick={() => navigateTo('AI_PROMPT')}
-                      className="p-3.5 rounded-[1.25rem] bg-gradient-to-br from-violet-600/30 via-purple-600/20 to-fuchsia-600/20 hover:from-violet-600/40 hover:to-fuchsia-600/30 border border-violet-500/30 hover:border-violet-400/50 backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95"
+                      className={`p-3.5 rounded-[1.25rem] backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95 border ${isDarkMode ? 'bg-gradient-to-br from-violet-600/30 via-purple-600/20 to-fuchsia-600/20 hover:from-violet-600/40 hover:to-fuchsia-600/30 border-violet-500/30 hover:border-violet-400/50 text-white' : 'bg-gradient-to-br from-violet-50 to-fuchsia-50 hover:from-violet-100 hover:to-fuchsia-100 border-violet-200 hover:border-violet-300 text-violet-900 shadow-sm'}`}
                     >
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-600 to-fuchsia-600 text-white flex items-center justify-center shadow-md shadow-violet-500/30 group-hover:scale-110 transition-transform mb-2">
                         <Sparkles size={18} />
                       </div>
-                      <div className="text-xs font-black text-white group-hover:text-violet-200 transition-colors">AI Forge</div>
-                      <div className="text-[9px] text-violet-300/80 font-medium mt-0.5">Instant Quiz AI</div>
+                      <div className={`text-xs font-black transition-colors ${isDarkMode ? 'text-white group-hover:text-violet-200' : 'text-violet-900 group-hover:text-violet-700'}`}>AI Forge</div>
+                      <div className={`text-[9px] font-medium mt-0.5 ${isDarkMode ? 'text-violet-300/80' : 'text-slate-500'}`}>Instant Quiz AI</div>
                     </button>
 
                     {/* Action 2: PDF & Docs */}
@@ -1768,37 +1761,37 @@ const App: React.FC = () => {
                         const el = document.getElementById('qf_upload_section');
                         if (el) el.scrollIntoView({ behavior: 'smooth' });
                       }}
-                      className="p-3.5 rounded-[1.25rem] bg-gradient-to-br from-cyan-600/30 via-teal-600/20 to-blue-600/20 hover:from-cyan-600/40 hover:to-blue-600/30 border border-cyan-500/30 hover:border-cyan-400/50 backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95"
+                      className={`p-3.5 rounded-[1.25rem] backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95 border ${isDarkMode ? 'bg-gradient-to-br from-cyan-600/30 via-teal-600/20 to-blue-600/20 hover:from-cyan-600/40 hover:to-blue-600/30 border-cyan-500/30 hover:border-cyan-400/50 text-white' : 'bg-gradient-to-br from-cyan-50 to-blue-50 hover:from-cyan-100 hover:to-blue-100 border-cyan-200 hover:border-cyan-300 text-cyan-900 shadow-sm'}`}
                     >
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-cyan-500/30 group-hover:scale-110 transition-transform mb-2">
                         <FileType size={18} />
                       </div>
-                      <div className="text-xs font-black text-white group-hover:text-cyan-200 transition-colors">PDF & Scan</div>
-                      <div className="text-[9px] text-cyan-300/80 font-medium mt-0.5">Document to MCQ</div>
+                      <div className={`text-xs font-black transition-colors ${isDarkMode ? 'text-white group-hover:text-cyan-200' : 'text-cyan-900 group-hover:text-cyan-700'}`}>PDF & Scan</div>
+                      <div className={`text-[9px] font-medium mt-0.5 ${isDarkMode ? 'text-cyan-300/80' : 'text-slate-500'}`}>Document to MCQ</div>
                     </button>
 
                     {/* Action 3: JSON Paste */}
                     <button
                       onClick={() => setShowPasteArea(true)}
-                      className="p-3.5 rounded-[1.25rem] bg-gradient-to-br from-emerald-600/30 via-teal-600/20 to-green-600/20 hover:from-emerald-600/40 hover:to-green-600/30 border border-emerald-500/30 hover:border-emerald-400/50 backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95"
+                      className={`p-3.5 rounded-[1.25rem] backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95 border ${isDarkMode ? 'bg-gradient-to-br from-emerald-600/30 via-teal-600/20 to-green-600/20 hover:from-emerald-600/40 hover:to-green-600/30 border-emerald-500/30 hover:border-emerald-400/50 text-white' : 'bg-gradient-to-br from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 border-emerald-200 hover:border-emerald-300 text-emerald-900 shadow-sm'}`}
                     >
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/30 group-hover:scale-110 transition-transform mb-2">
                         <ClipboardList size={18} />
                       </div>
-                      <div className="text-xs font-black text-white group-hover:text-emerald-200 transition-colors">Paste JSON</div>
-                      <div className="text-[9px] text-emerald-300/80 font-medium mt-0.5">Direct Upload</div>
+                      <div className={`text-xs font-black transition-colors ${isDarkMode ? 'text-white group-hover:text-emerald-200' : 'text-emerald-900 group-hover:text-emerald-700'}`}>Paste JSON</div>
+                      <div className={`text-[9px] font-medium mt-0.5 ${isDarkMode ? 'text-emerald-300/80' : 'text-slate-500'}`}>Direct Upload</div>
                     </button>
 
                     {/* Action 4: MongoDB Center */}
                     <button
                       onClick={() => setShowMongoModal(true)}
-                      className="p-3.5 rounded-[1.25rem] bg-gradient-to-br from-amber-600/30 via-orange-600/20 to-yellow-600/20 hover:from-amber-600/40 hover:to-yellow-600/30 border border-amber-500/30 hover:border-amber-400/50 backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95"
+                      className={`p-3.5 rounded-[1.25rem] backdrop-blur-xl shadow-lg transition-all text-left group active:scale-95 border ${isDarkMode ? 'bg-gradient-to-br from-amber-600/30 via-orange-600/20 to-yellow-600/20 hover:from-amber-600/40 hover:to-yellow-600/30 border-amber-500/30 hover:border-amber-400/50 text-white' : 'bg-gradient-to-br from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border-amber-200 hover:border-amber-300 text-amber-900 shadow-sm'}`}
                     >
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/30 group-hover:scale-110 transition-transform mb-2">
                         <Database size={18} />
                       </div>
-                      <div className="text-xs font-black text-white group-hover:text-amber-200 transition-colors">Database</div>
-                      <div className="text-[9px] text-amber-300/80 font-medium mt-0.5">MongoDB Cloud</div>
+                      <div className={`text-xs font-black transition-colors ${isDarkMode ? 'text-white group-hover:text-amber-200' : 'text-amber-900 group-hover:text-amber-700'}`}>Database</div>
+                      <div className={`text-[9px] font-medium mt-0.5 ${isDarkMode ? 'text-amber-300/80' : 'text-slate-500'}`}>MongoDB Cloud</div>
                     </button>
                   </div>
 
@@ -1881,12 +1874,12 @@ const App: React.FC = () => {
                   {/* 1. VIBRANT CATEGORIES SECTION WITH COLOR THEMES */}
                   <div className="text-left mt-5">
                     <div className="flex items-center justify-between mb-3 px-1">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-white/90 flex items-center gap-1.5 drop-shadow-md">
+                      <h3 className={`text-xs font-black uppercase tracking-widest flex items-center gap-1.5 drop-shadow-md ${isDarkMode ? 'text-white/90' : 'text-slate-800'}`}>
                         <Sparkles size={15} className="text-fuchsia-400 animate-pulse" /> EXPLORE CATEGORIES
                       </h3>
                       <button 
                         onClick={() => navigateTo('LIBRARY')} 
-                        className="text-[9.5px] font-black uppercase tracking-widest text-violet-300 hover:text-white bg-violet-950/40 hover:bg-violet-900/60 backdrop-blur-md px-3 py-1 rounded-full border border-violet-500/30 flex items-center gap-1 transition-all shadow-sm"
+                        className={`text-[9.5px] font-black uppercase tracking-widest backdrop-blur-md px-3 py-1 rounded-full border flex items-center gap-1 transition-all shadow-sm ${isDarkMode ? 'text-violet-300 hover:text-white bg-violet-950/40 hover:bg-violet-900/60 border-violet-500/30' : 'text-violet-700 hover:text-violet-900 bg-violet-100 hover:bg-violet-200 border-violet-300'}`}
                       >
                         View All <ArrowRight size={10} />
                       </button>
@@ -1974,8 +1967,8 @@ const App: React.FC = () => {
                                      {cat.icon || getIcon(cat.name)}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <h4 className="font-black text-sm sm:text-base text-white mb-1 leading-tight drop-shadow-sm group-hover:text-blue-200 transition-colors truncate">{cat.name}</h4>
-                                    <div className="inline-flex px-2 py-0.5 rounded-full bg-black/40 backdrop-blur-md text-white/80 border border-white/10 text-[8.5px] font-black uppercase tracking-widest shadow-inner">
+                                    <h4 className={`font-black text-sm sm:text-base mb-1 leading-tight drop-shadow-sm transition-colors truncate ${isDarkMode ? 'text-white group-hover:text-blue-200' : 'text-slate-900 group-hover:text-blue-700'}`}>{cat.name}</h4>
+                                    <div className={`inline-flex px-2 py-0.5 rounded-full backdrop-blur-md text-[8.5px] font-black uppercase tracking-widest shadow-inner border ${isDarkMode ? 'bg-black/40 text-white/80 border-white/10' : 'bg-black/10 text-slate-800 border-black/10'}`}>
                                       {catQuizCount} Tests • {subCats.length > 0 ? subCats.length : 1} Topics
                                     </div>
                                   </div>
@@ -2296,7 +2289,7 @@ const App: React.FC = () => {
                         value={librarySearchQuery}
                         onChange={(e) => setLibrarySearchQuery(e.target.value)}
                         placeholder="Search tests by name..."
-                        className={`w-full pl-10 pr-8 py-2.5 rounded-xl text-xs font-bold outline-none border transition-all ${
+                        className={`w-full pl-10 pr-8 py-2.5 rounded-xl text-xs font-bold outline-none border backdrop-blur-md shadow-sm transition-all ${
                           isDarkMode 
                             ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/20' 
                             : 'bg-white border-slate-200 text-slate-900 placeholder-slate-450 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 shadow-3xs'
@@ -2321,7 +2314,7 @@ const App: React.FC = () => {
                       <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1.5 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         <button 
                           onClick={() => { setSelectedCategoryFilter('ALL'); setSelectedSubCategoryFilter('ALL'); }} 
-                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-md' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
+                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                         >
                           All Categories
                         </button>
@@ -2329,7 +2322,7 @@ const App: React.FC = () => {
                           <button 
                             key={c.id} 
                             onClick={() => { setSelectedCategoryFilter(c.id); setSelectedSubCategoryFilter('ALL'); }} 
-                            className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-blue-600 text-white shadow-md' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
+                            className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                           >
                             {c.name}
                           </button>
@@ -2371,12 +2364,41 @@ const App: React.FC = () => {
                       .map((q) => {
                         const catObj = categories.find(c => c.id === q.categoryId);
                         const subCatObj = categories.find(c => c.id === q.subCategoryId);
+                        
+                        // Pick theme based on category index for colorful library boxes
+                        const rootCats = categories.filter(c => !c.parentId);
+                        const catIndex = rootCats.findIndex(c => c.id === q.categoryId);
+                        const tIndex = catIndex >= 0 ? catIndex : 0;
+                        const libThemes = [
+                          {
+                            bg: isDarkMode ? 'bg-violet-950/40 hover:bg-violet-900/60' : 'bg-gradient-to-br from-violet-50/80 to-fuchsia-50 border-violet-100',
+                            border: isDarkMode ? 'border-violet-900/50 hover:border-violet-700' : 'hover:border-violet-300',
+                          },
+                          {
+                            bg: isDarkMode ? 'bg-cyan-950/40 hover:bg-cyan-900/60' : 'bg-gradient-to-br from-cyan-50/80 to-teal-50 border-cyan-100',
+                            border: isDarkMode ? 'border-cyan-900/50 hover:border-cyan-700' : 'hover:border-cyan-300',
+                          },
+                          {
+                            bg: isDarkMode ? 'bg-rose-950/40 hover:bg-rose-900/60' : 'bg-gradient-to-br from-rose-50/80 to-pink-50 border-rose-100',
+                            border: isDarkMode ? 'border-rose-900/50 hover:border-rose-700' : 'hover:border-rose-300',
+                          },
+                          {
+                            bg: isDarkMode ? 'bg-amber-950/40 hover:bg-amber-900/60' : 'bg-gradient-to-br from-amber-50/80 to-orange-50 border-amber-100',
+                            border: isDarkMode ? 'border-amber-900/50 hover:border-amber-700' : 'hover:border-amber-300',
+                          },
+                          {
+                            bg: isDarkMode ? 'bg-emerald-950/40 hover:bg-emerald-900/60' : 'bg-gradient-to-br from-emerald-50/80 to-teal-50 border-emerald-100',
+                            border: isDarkMode ? 'border-emerald-900/50 hover:border-emerald-700' : 'hover:border-emerald-300',
+                          }
+                        ];
+                        const lTheme = libThemes[tIndex % libThemes.length];
+
                         return (
-                          <div key={q.id} className={`group p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:shadow-xs hover:border-blue-500 transition-all flex items-center gap-2 ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}>
+                          <div key={q.id} className={`group p-2.5 rounded-2xl border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all flex items-center gap-3 ${lTheme.bg} ${lTheme.border}`}>
                             <TopicImage 
                               title={q.title} 
                               customUrl={q.thumbnailUrl || catObj?.thumbnailUrl}
-                              className="w-8 h-8 shrink-0 rounded-lg object-cover border border-slate-200 dark:border-slate-800"
+                              className={`w-10 h-10 shrink-0 rounded-[0.8rem] object-cover border shadow-sm ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}
                             />
                             
                             <div className="flex-1 min-w-0">
@@ -2392,7 +2414,7 @@ const App: React.FC = () => {
                                  </div>
                                ) : (
                                  <div>
-                                   <h4 className={`font-bold text-[10px] sm:text-[10.5px] ${isDarkMode ? 'text-slate-100' : 'text-slate-900'} group-hover:text-blue-500 transition-colors truncate`} title={q.title}>{q.title}</h4>
+                                   <h4 className={`font-black text-[11px] sm:text-[12px] leading-tight ${isDarkMode ? 'text-slate-100' : 'text-slate-800'} group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate`} title={q.title}>{q.title}</h4>
                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
                                       <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">{q.questions.length} Qs</span>
                                       {catObj && (
@@ -2413,9 +2435,8 @@ const App: React.FC = () => {
                              <div className="flex items-center gap-1 shrink-0">
                                <button 
                                  onClick={() => handleInitiateQuiz(q)}
-                                 className="px-2 py-0.5 bg-blue-600 text-white rounded-lg font-black text-[8px] uppercase tracking-wider hover:bg-blue-700 transition-all shadow-2xs active:scale-95 flex items-center gap-0.5"
-                               >
-                                 <Play size={8} fill="currentColor" /> Start
+                                 className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:from-emerald-400 hover:to-teal-400 transition-all shadow-md shadow-emerald-500/30 active:scale-95 flex items-center gap-1">
+                                 <Play size={10} fill="currentColor" /> START
                                </button>
                                <div className="relative">
                                  <button 
@@ -3224,23 +3245,23 @@ const App: React.FC = () => {
               const updatedLib = [...library];
               updatedLib[existingIdx] = {
                 ...updatedLib[existingIdx],
-                quiz: updatedQuiz
+                ...updatedQuiz
               };
               setLibrary(updatedLib);
               localStorage.setItem('quizzly_library', JSON.stringify(updatedLib));
             } else {
               // If it's a newly audited quiz (e.g. from pasted JSON), add it to library
               const newStored: StoredQuiz = {
-                quiz: updatedQuiz,
-                savedAt: Date.now()
+                ...updatedQuiz,
+                // savedAt is not in StoredQuiz, maybe it doesn't matter or it's part of it
               };
               const updatedLib = [newStored, ...library];
               setLibrary(updatedLib);
               localStorage.setItem('quizzly_library', JSON.stringify(updatedLib));
             }
 
-            if (activeQuiz && activeQuiz.id === updatedQuiz.id) {
-              setActiveQuiz(updatedQuiz);
+            if (quiz && quiz.id === updatedQuiz.id) {
+              setQuiz(updatedQuiz);
             }
             setSuccessMessage(`✓ AI Audit applied! ${updatedQuiz.questions.length} questions verified & updated.`);
             setTimeout(() => setSuccessMessage(null), 4000);

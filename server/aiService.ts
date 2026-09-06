@@ -740,7 +740,6 @@ export async function generateServerQuizFromPrompt(
     createdAt: Date.now(),
     isInfinite: true,
     originalPrompt: prompt,
-    language,
-    difficulty
+    language
   };
 }

@@ -17,6 +17,7 @@ export async function extractTextFromPDF(file: File): Promise<string> {
     });
   }
 
+  // @ts-ignore
   const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
 

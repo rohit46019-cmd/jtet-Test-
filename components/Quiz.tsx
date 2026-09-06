@@ -170,7 +170,7 @@ const DecoratedExplanation: React.FC<{
 
 const Quiz: React.FC<QuizProps> = ({ 
   quiz, 
-  quizConfig = { mode: 'PRACTICE', positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 }, 
+  quizConfig = { mode: 'PRACTICE' as any, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 }, 
   onFinish, 
   onAbort, 
   onSaveAndExit,
@@ -255,7 +255,7 @@ const Quiz: React.FC<QuizProps> = ({
     if (currentQuiz && userAnswers.length >= 0) {
       const sessionData = {
         quiz: currentQuiz,
-        quizConfig: quizConfig || { mode: 'PRACTICE' as const, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
+        quizConfig: quizConfig || { mode: 'PRACTICE' as any, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
         currentQuestionIndex,
         userAnswers,
         timer
@@ -317,7 +317,7 @@ const Quiz: React.FC<QuizProps> = ({
         // Save updated session & phone storage
         quizSessionService.saveSession({
           quiz: updatedQuiz,
-          quizConfig: quizConfig || { mode: 'PRACTICE', positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
+          quizConfig: quizConfig || { mode: 'PRACTICE' as any, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
           currentQuestionIndex,
           userAnswers,
           timer
@@ -374,7 +374,7 @@ const Quiz: React.FC<QuizProps> = ({
       if (quiz) {
         quizSessionService.saveSession({
           quiz,
-          quizConfig: quizConfig || { mode: 'PRACTICE' as const, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
+          quizConfig: quizConfig || { mode: 'PRACTICE' as any, positiveMarks: 1, negativeMarks: 0.25, timePerQuestion: 0, testDurationMinutes: 0 },
           currentQuestionIndex,
           userAnswers,
           timer
