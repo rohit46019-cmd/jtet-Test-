@@ -90,31 +90,39 @@ const DecoratedExplanation: React.FC<{
     .filter(p => p.length > 0);
 
   return (
-    <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 text-left select-text animate-in duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-lg">
-            <Brain size={16} />
+    <div className="mt-8 relative overflow-hidden rounded-[1.5rem] text-left select-text animate-in slide-in-from-bottom-2 duration-300 shadow-sm border border-slate-200/60 dark:border-slate-700/50">
+      
+      {/* Colorful Gradient Backdrop */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-purple-50/80 dark:from-blue-950/20 dark:via-indigo-950/10 dark:to-purple-950/20 pointer-events-none" />
+      
+      <div className="relative p-5 sm:p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3 border-b border-indigo-100/50 dark:border-indigo-900/30 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-tr from-indigo-500 to-blue-500 text-white shadow-md shadow-indigo-500/20 rounded-xl">
+              <Brain size={16} />
+            </div>
+            <div>
+              <h4 className="font-black text-[13px] sm:text-[14px] uppercase tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-400 dark:to-blue-400">
+                Concept Insight
+              </h4>
+              <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Explanation & Reasoning</p>
+            </div>
           </div>
-          <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
-            Explanation & Concept Insight
-          </span>
+          
+          {onAskAi && (
+            <button
+              onClick={onAskAi}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-[10px] uppercase tracking-wider shadow-lg shadow-blue-500/30 active:scale-95 transition-all"
+            >
+              <Sparkles size={12} className="animate-pulse" />
+              <span>Ask AI Assistant</span>
+            </button>
+          )}
         </div>
-        
-        {onAskAi && (
-          <button
-            onClick={onAskAi}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-wider shadow-sm active:scale-95 transition-all"
-          >
-            <Sparkles size={11} />
-            <span>Ask AI</span>
-          </button>
-        )}
-      </div>
 
-      {/* Content paragraphs - clean, structured, no heavy boxes */}
-      <div className="space-y-2.5 text-slate-700 dark:text-slate-300 text-xs sm:text-sm font-medium leading-relaxed">
+        {/* Content paragraphs - clean, structured, no heavy boxes */}
+        <div className="space-y-3 text-slate-700 dark:text-slate-300 text-[13px] sm:text-sm font-medium leading-relaxed">
         {paragraphs.length > 0 ? (
           paragraphs.map((para, idx) => {
             const isBullet = para.startsWith('•') || para.startsWith('-') || para.startsWith('*') || /^\d+[\.\)]\s+/.test(para);
@@ -163,6 +171,7 @@ const DecoratedExplanation: React.FC<{
         ) : (
           <p className="text-slate-500 italic">No static explanation available. Click "Ask AI" for a detailed breakdown!</p>
         )}
+      </div>
       </div>
     </div>
   );
@@ -784,7 +793,7 @@ const Quiz: React.FC<QuizProps> = ({
 
       {/* Question Body with Touch Swipe Detection */}
       <div 
-        className={`flex-1 ${isPaused || showSubmitConfirm || showExitConfirm || showReportModal || showAiModal || showPalette ? 'overflow-hidden' : 'overflow-y-auto'} px-0 sm:px-4 pt-1.5 pb-6 relative touch-pan-y`}
+        className={`flex-1 ${isPaused || showSubmitConfirm || showExitConfirm || showReportModal || showAiModal || showPalette ? 'overflow-hidden' : 'overflow-y-auto'} px-0 sm:px-4 pt-1.5 pb-28 relative touch-pan-y`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -953,27 +962,45 @@ const Quiz: React.FC<QuizProps> = ({
                </div>
             )}
 
-            {/* Question Text with distinct background area and smart highlight */}
-            <div className="bg-blue-50/45 dark:bg-slate-900 border border-blue-100/50 dark:border-slate-850 px-4 sm:px-5 py-4 rounded-2xl shadow-3xs whitespace-pre-wrap break-words">
-              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-relaxed">
+            {/* Sleek Question Box */}
+            <div className="relative bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 px-5 py-5 sm:px-6 sm:py-6 rounded-[1.5rem] shadow-sm whitespace-pre-wrap break-words overflow-hidden group">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-blue-500 to-indigo-500" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition-colors" />
+              <h3 className="relative z-10 text-[15px] sm:text-[17px] font-black text-slate-900 dark:text-white leading-[1.6]">
                 {highlightQuestionText(currentQuestion.question)}
               </h3>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {currentQuestion.options.map((option, idx) => {
                 const isSelected = selectedOption === idx;
                 const isCorrect = idx === currentQuestion.correctAnswerIndex;
-                let btnStyle = "bg-slate-50/50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-850";
                 
+                let btnStyle = "bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-sm";
+                let letterStyle = "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200";
+                let textStyle = "text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white";
+                let showIcon = null;
+
                 if (mode === 'PRACTICE' && showFeedback) {
-                  // Practice mode instant feedback styling
-                  if (isCorrect) btnStyle = "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-700 dark:text-emerald-400 shadow-2xs font-semibold";
-                  else if (isSelected) btnStyle = "bg-rose-50 dark:bg-rose-900/20 border-rose-500 text-rose-700 dark:text-rose-400 shadow-2xs font-semibold";
-                  else btnStyle = "opacity-40 grayscale-[0.5]";
+                  if (isCorrect) {
+                    btnStyle = "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-400 dark:border-emerald-500/50 shadow-md ring-1 ring-emerald-500/20 font-bold scale-[1.01]";
+                    letterStyle = "bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/30";
+                    textStyle = "text-emerald-900 dark:text-emerald-100 font-bold";
+                    showIcon = <Check size={14} strokeWidth={4} />;
+                  } else if (isSelected) {
+                    btnStyle = "bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/30 border-rose-300 dark:border-rose-500/50 font-bold";
+                    letterStyle = "bg-rose-500 border-rose-500 text-white shadow-sm";
+                    textStyle = "text-rose-900 dark:text-rose-100 font-bold";
+                    showIcon = <X size={14} strokeWidth={4} />;
+                  } else {
+                    btnStyle = "bg-slate-50/50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 opacity-60";
+                    letterStyle = "bg-slate-100/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500";
+                    textStyle = "text-slate-500 dark:text-slate-400";
+                  }
                 } else if (isSelected) {
-                  // Test mode / pre-feedback selected styling
-                  btnStyle = "bg-blue-50 dark:bg-blue-900/30 border-blue-600 ring-2 ring-blue-500/20 text-blue-900 dark:text-blue-200 font-semibold shadow-2xs";
+                  btnStyle = "bg-blue-50 dark:bg-blue-900/30 border-blue-500 ring-2 ring-blue-500/20 shadow-sm scale-[1.01]";
+                  letterStyle = "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/30";
+                  textStyle = "text-blue-900 dark:text-blue-100 font-bold";
                 }
 
                 return (
@@ -981,16 +1008,16 @@ const Quiz: React.FC<QuizProps> = ({
                     key={idx} 
                     disabled={(mode === 'PRACTICE' && showFeedback) || (effectiveTimePerQ > 0 && questionTimer === 0)} 
                     onClick={() => handleOptionClick(idx)} 
-                    className={`w-full text-left p-3.5 sm:p-4 rounded-2xl border transition-all flex items-center group ${btnStyle}`}
+                    className={`w-full text-left p-3.5 sm:p-4 rounded-[1.25rem] border transition-all duration-300 flex items-center group ${btnStyle}`}
                   >
-                    <div className={`w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full border flex items-center justify-center mr-3 font-black text-xs transition-all shrink-0 aspect-square
-                      ${isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-850'}
-                    `}>
-                      {String.fromCharCode(65 + idx)}
+                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center mr-3.5 font-black text-sm transition-all shrink-0 aspect-square ${letterStyle}`}>
+                      {showIcon || String.fromCharCode(65 + idx)}
                     </div>
-                    <span className="font-semibold text-xs sm:text-sm leading-snug flex-1 text-slate-800 dark:text-slate-200">{option}</span>
+                    <span className={`text-xs sm:text-sm leading-snug flex-1 transition-colors ${textStyle}`}>
+                      {option}
+                    </span>
                     {mode === 'TEST' && isSelected && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider ml-2">Selected</span>
+                      <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider ml-2 shadow-sm">Selected</span>
                     )}
                   </button>
                 );
@@ -1102,30 +1129,35 @@ const Quiz: React.FC<QuizProps> = ({
         </>
       )}
 
-      {/* Bottom Footer Action Controls */}
-      <div className="bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 px-4 py-4 shadow-lg">
-        <div className="max-w-md mx-auto flex items-center justify-between gap-3">
-          <button 
-            onClick={handlePrevious} 
-            disabled={currentQuestionIndex === 0 || isFetchingNext}
-            className={`flex items-center gap-1.5 px-4 py-3 rounded-2xl font-extrabold text-xs uppercase tracking-wider transition-all active:scale-95
-              ${(currentQuestionIndex === 0 || isFetchingNext) ? 'opacity-0 pointer-events-none' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800'}
-            `}
-          >
-            <ChevronLeft size={16} /> Prev
-          </button>
+      {/* Floating Bottom Dock Action Controls */}
+      <div className="fixed bottom-4 left-0 right-0 px-4 z-[90] pointer-events-none">
+        <div className="max-w-md mx-auto pointer-events-auto">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-2 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.3)] flex items-center justify-between gap-3 relative overflow-hidden">
+             
+             {/* Subtle Glow Background */}
+             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-indigo-500/5 pointer-events-none" />
 
-          <div className="flex gap-2 flex-1 justify-end">
+             <button 
+               onClick={handlePrevious} 
+               disabled={currentQuestionIndex === 0 || isFetchingNext}
+               className={`relative flex items-center justify-center h-14 w-14 shrink-0 rounded-full font-black transition-all active:scale-95
+                 ${(currentQuestionIndex === 0 || isFetchingNext) ? 'opacity-0 pointer-events-none' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100/60 hover:bg-slate-200/80 dark:bg-slate-800/60 dark:hover:bg-slate-700/80 shadow-sm'}
+               `}
+             >
+               <ChevronLeft size={22} strokeWidth={3} />
+             </button>
+
              <button 
                onClick={handleNext}
                disabled={isFetchingNext}
-               className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-2xl font-extrabold text-xs uppercase tracking-wider shadow-md shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 min-w-[130px] justify-center"
+               className="relative flex-1 h-14 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-full font-black text-xs sm:text-sm uppercase tracking-widest shadow-lg shadow-blue-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 group"
              >
                 {isFetchingNext ? (
-                  <Loader2 size={16} className="animate-spin" />
+                  <Loader2 size={20} className="animate-spin" />
                 ) : (
                   <>
-                   {currentQuestionIndex === quiz.questions.length - 1 && !quiz.isInfinite ? (mode === 'TEST' ? "Submit Test" : "Finish") : "Next"} <ChevronRight size={16} />
+                   {currentQuestionIndex === quiz.questions.length - 1 && !quiz.isInfinite ? (mode === 'TEST' ? "Submit Test" : "Finish") : "Next"} 
+                   <ChevronRight size={20} strokeWidth={3} className="group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
              </button>
