@@ -214,6 +214,15 @@ function saveLocalData() {
 // --- MONGODB CONNECTION WITH AUTO-FALLBACK ---
 const MONGO_CONFIG_FILE = path.join(DATA_DIR, 'mongodb_config.json');
 
+function sanitizeMongoUri(rawUri?: string | null): string {
+  if (!rawUri) return '';
+  let uri = rawUri.trim();
+  uri = uri.replace(/^["']|["']$/g, '');
+  // Automatically strip angle brackets around password (e.g. :<password>@ -> :password@)
+  uri = uri.replace(/:<([^>@]+)>@/, ':$1@');
+  return uri;
+}
+
 function getActiveMongoUri(): string {
   const envUris = [
     process.env.MONGODB_URI,
@@ -221,7 +230,8 @@ function getActiveMongoUri(): string {
     process.env.MONGODB_URL,
     process.env.DATABASE_URL
   ];
-  for (const uri of envUris) {
+  for (const raw of envUris) {
+    const uri = sanitizeMongoUri(raw);
     if (uri && (uri.startsWith('mongodb://') || uri.startsWith('mongodb+srv://'))) {
       return uri;
     }
@@ -229,8 +239,9 @@ function getActiveMongoUri(): string {
   try {
     if (fs.existsSync(MONGO_CONFIG_FILE)) {
       const cfg = JSON.parse(fs.readFileSync(MONGO_CONFIG_FILE, 'utf-8'));
-      if (cfg.uri && (cfg.uri.startsWith('mongodb://') || cfg.uri.startsWith('mongodb+srv://'))) {
-        return cfg.uri;
+      const uri = sanitizeMongoUri(cfg.uri);
+      if (uri && (uri.startsWith('mongodb://') || uri.startsWith('mongodb+srv://'))) {
+        return uri;
       }
     }
   } catch (e) {}
@@ -250,8 +261,55 @@ function cleanForMongo(obj: any) {
   return rest;
 }
 
+// Automatically sync all local data to MongoDB whenever connected
+async function syncLocalDataToMongo(database: any) {
+  try {
+    if (!database) return;
+    // 1. Quizzes
+    if (localStore.quizzes && localStore.quizzes.length > 0) {
+      for (const q of localStore.quizzes) {
+        if (q && q.id) {
+          await database.collection('quizzes').updateOne(
+            { id: q.id },
+            { $set: cleanForMongo({ ...q, updatedAt: q.updatedAt || Date.now() }) },
+            { upsert: true }
+          );
+        }
+      }
+    }
+    // 2. Categories
+    if (localStore.categories && localStore.categories.length > 0) {
+      for (const c of localStore.categories) {
+        if (c && c.id) {
+          await database.collection('categories').updateOne(
+            { id: c.id },
+            { $set: cleanForMongo(c) },
+            { upsert: true }
+          );
+        }
+      }
+    }
+    // 3. Users
+    if (localStore.users && localStore.users.length > 0) {
+      for (const u of localStore.users) {
+        if (u && (u.id || u.email)) {
+          await database.collection('users').updateOne(
+            { $or: [{ id: u.id }, { email: u.email }] },
+            { $set: cleanForMongo(u) },
+            { upsert: true }
+          );
+        }
+      }
+    }
+    console.log(`[Storage] Auto-sync complete: Synced ${localStore.quizzes.length} quizzes and ${localStore.categories.length} categories to MongoDB.`);
+  } catch (syncErr) {
+    console.warn('[Storage] MongoDB auto-sync notice:', syncErr);
+  }
+}
+
 async function connectToMongoDB(customUri?: string, forceRetry = false) {
-  const uriToUse = customUri || activeMongoUri || getActiveMongoUri();
+  const sanitizedCustom = customUri ? sanitizeMongoUri(customUri) : '';
+  const uriToUse = sanitizedCustom || activeMongoUri || getActiveMongoUri();
   if (!uriToUse || (!uriToUse.startsWith('mongodb://') && !uriToUse.startsWith('mongodb+srv://'))) {
     return null;
   }
@@ -289,7 +347,7 @@ async function connectToMongoDB(customUri?: string, forceRetry = false) {
     if (customUri) {
       try {
         if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(MONGO_CONFIG_FILE, JSON.stringify({ uri: customUri, updatedAt: Date.now() }, null, 2));
+        fs.writeFileSync(MONGO_CONFIG_FILE, JSON.stringify({ uri: uriToUse, updatedAt: Date.now() }, null, 2));
 
         // Also update .env file for robust persistence across server restarts
         const envPath = path.join(process.cwd(), '.env');
@@ -298,27 +356,29 @@ async function connectToMongoDB(customUri?: string, forceRetry = false) {
           envContent = fs.readFileSync(envPath, 'utf-8');
         }
         if (envContent.includes('MONGODB_URI=')) {
-          envContent = envContent.replace(/^MONGODB_URI=.*$/gm, `MONGODB_URI=${customUri}`);
+          envContent = envContent.replace(/^MONGODB_URI=.*$/gm, `MONGODB_URI=${uriToUse}`);
         } else {
-          envContent += `\nMONGODB_URI=${customUri}\n`;
+          envContent += `\nMONGODB_URI=${uriToUse}\n`;
         }
         fs.writeFileSync(envPath, envContent);
-        process.env.MONGODB_URI = customUri;
+        process.env.MONGODB_URI = uriToUse;
       } catch (e) {
         console.error('Failed to save MongoDB URI to persistent storage:', e);
       }
     }
 
     console.log('[Storage] Connected successfully to MongoDB database (quizflash).');
+    syncLocalDataToMongo(db).catch(() => {});
     isConnectingMongo = false;
     return db;
   } catch (err: any) {
     isConnectingMongo = false;
     const errMsg = err.message || String(err);
-    lastMongoError = errMsg;
-
     if (errMsg.includes('auth') || errMsg.includes('Authentication') || errMsg.includes('bad auth')) {
+      lastMongoError = 'MongoDB Atlas Authentication Failed: User or password was not accepted by cluster0.1e9ikck.mongodb.net. Please check Database Access in your MongoDB Atlas dashboard.';
       failedAuthUris.add(uriToUse);
+    } else {
+      lastMongoError = errMsg;
     }
 
     if (client) {
@@ -348,8 +408,12 @@ app.get('/api/health', async (req, res) => {
 
 // MongoDB Status endpoint
 app.get('/api/mongodb/status', async (req, res) => {
+  const force = req.query.retry === 'true';
+  if (force) {
+    failedAuthUris.clear();
+  }
   try {
-    const database = await connectToMongoDB();
+    const database = await connectToMongoDB(undefined, force);
     if (database) {
       const [quizCount, catCount, userCount, fileCount] = await Promise.all([
         database.collection('quizzes').countDocuments().catch(() => 0),
@@ -378,10 +442,15 @@ app.get('/api/mongodb/status', async (req, res) => {
     }
   } catch (err) {}
 
+  const currentUri = activeMongoUri || getActiveMongoUri();
+  const maskedUri = currentUri
+    ? currentUri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@.+)/, '$1******$3')
+    : '';
+
   res.json({
     connected: false,
     databaseName: 'Local Storage & Memory Cache',
-    uriMasked: '',
+    uriMasked: maskedUri,
     storageType: 'Local File Persistence',
     error: lastMongoError,
     counts: {
@@ -390,6 +459,23 @@ app.get('/api/mongodb/status', async (req, res) => {
       users: localStore.users.length,
       uploadedFiles: 0
     }
+  });
+});
+
+// MongoDB Retry / Reconnect endpoint
+app.post('/api/mongodb/retry', async (req, res) => {
+  failedAuthUris.clear();
+  activeMongoUri = getActiveMongoUri();
+  const database = await connectToMongoDB(undefined, true);
+  if (database) {
+    return res.json({
+      success: true,
+      message: 'Successfully reconnected to MongoDB Atlas!',
+      databaseName: 'quizflash'
+    });
+  }
+  return res.status(400).json({
+    error: lastMongoError || 'Authentication failed. Please check MongoDB Atlas Database Access credentials.'
   });
 });
 

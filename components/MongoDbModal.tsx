@@ -118,6 +118,32 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
     }
   };
 
+  const handleRetryMongo = async () => {
+    try {
+      setLoading(true);
+      setMessage(null);
+      const res = await fetch('/api/mongodb/retry', { method: 'POST' });
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch (e) { data = { error: text }; }
+      if (res.ok) {
+        setMessage({ type: 'success', text: data.message || 'Successfully connected to MongoDB Atlas!' });
+        await fetchStatus();
+        if (onSyncComplete) onSyncComplete();
+      } else {
+        setMessage({ 
+          type: 'error', 
+          text: data.error || 'Authentication failed. Please verify credentials in MongoDB Atlas Database Access.' 
+        });
+        await fetchStatus();
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Retry connection failed' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDisconnect = async () => {
     try {
       setLoading(true);
@@ -293,15 +319,37 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
           </button>
         </div>
 
-        {/* MongoDB URI Info */}
+        {/* MongoDB URI Info & Retry Button */}
         {!mongoStatus?.connected && (
           <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 mb-5">
-            <h4 className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-400 mb-1 flex items-center gap-1.5">
-              <Shield size={14} /> Action Required
-            </h4>
-            <p className="text-[10px] text-amber-700 dark:text-amber-300">
-              To connect your database, please add your <b>MongoDB URI</b> to the <b>Secrets</b> menu in AI Studio (key: <code className="bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded">MONGODB_URI</code>), then restart the applet.
-            </p>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                <Shield size={14} /> Registered MongoDB Cloud URI
+              </h4>
+              <span className="px-2 py-0.5 rounded-md bg-amber-200/50 dark:bg-amber-900/40 text-[9px] font-black uppercase text-amber-800 dark:text-amber-300">
+                Pending Auth
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-black/5 dark:bg-black/30 border border-black/10 dark:border-white/10 font-mono text-[10px] break-all text-slate-700 dark:text-slate-300 mb-3 select-all">
+              {mongoStatus?.uriMasked || 'mongodb+srv://rohit37816_db_user:******@cluster0.1e9ikck.mongodb.net/?appName=Cluster0'}
+            </div>
+
+            <button
+              onClick={handleRetryMongo}
+              disabled={loading}
+              className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-amber-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 mb-3 disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              {loading ? 'Connecting to Cluster...' : 'Test / Connect MongoDB Now'}
+            </button>
+
+            <div className="text-[10px] text-amber-800 dark:text-amber-300/90 space-y-1 bg-amber-100/60 dark:bg-amber-900/20 p-2.5 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
+              <div className="font-black uppercase tracking-wider text-[9px]">MongoDB Atlas Checklist:</div>
+              <p>• <b>Database Access:</b> User <code className="font-bold">rohit37816_db_user</code> password <code className="font-bold">ACASd3vHqdurgBpW</code> bana hona chahiye.</p>
+              <p>• <b>Role:</b> User ke paas <code className="font-bold">Read and write to any database</code> role ho.</p>
+              <p>• <b>Network Access:</b> IP Access List me <code className="font-bold">0.0.0.0/0</code> (Allow Access Anywhere) enabled ho.</p>
+            </div>
           </div>
         )}
 

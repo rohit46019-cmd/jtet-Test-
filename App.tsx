@@ -28,11 +28,14 @@ import {
   ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
   ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe,
   Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw, Brain, CheckSquare,
-  Search, Loader2, ExternalLink, Check, AlertTriangle, Upload
+  Search, Loader2, ExternalLink, Check, AlertTriangle, Upload, Wifi, WifiOff
 } from 'lucide-react';
 import { getTopicThumbnail, TopicImage } from './lib/thumbnailHelper';
 import { UserProfileSettings } from './components/UserProfileSettings';
 import { MongoDbModal } from './components/MongoDbModal';
+import { OfflineManagerModal } from './components/OfflineManagerModal';
+import { offlineQuizService } from './services/offlineQuizService';
+import { testFirestoreConnection } from './lib/firebase';
 
 const App: React.FC = () => {
   const { user, isAdmin, loading: authLoading, login, loginAsGuest, logout, authError, updateUserProfile } = useAuth();
@@ -64,12 +67,39 @@ const App: React.FC = () => {
   
   const [showDetailedSolutions, setShowDetailedSolutions] = useState(false);
 
+  // Offline & Low-Internet management state
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [downloadedQuizIds, setDownloadedQuizIds] = useState<Set<string>>(() => offlineQuizService.getDownloadedQuizIds());
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [offlineFilterOnly, setOfflineFilterOnly] = useState(false);
+
   useEffect(() => {
     const handleOpenDetailedSolutions = () => {
       setShowDetailedSolutions(true);
     };
+    const handleOnline = () => {
+      setIsOnline(true);
+      setSuccessMessage("✓ Network connected! MongoDB and Cloud sync active.");
+      setTimeout(() => setSuccessMessage(null), 3500);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+    const handleOfflineUpdated = () => {
+      setDownloadedQuizIds(offlineQuizService.getDownloadedQuizIds());
+    };
+
     window.addEventListener('open-detailed-solutions', handleOpenDetailedSolutions);
-    return () => window.removeEventListener('open-detailed-solutions', handleOpenDetailedSolutions);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('qf_offline_updated', handleOfflineUpdated);
+
+    return () => {
+      window.removeEventListener('open-detailed-solutions', handleOpenDetailedSolutions);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('qf_offline_updated', handleOfflineUpdated);
+    };
   }, []);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     try {
@@ -300,6 +330,7 @@ const App: React.FC = () => {
       } catch (e) {}
     }
     fetchQuizConfig();
+    testFirestoreConnection();
   }, []);
 
   const fetchQuizConfig = async () => {
@@ -799,15 +830,35 @@ const App: React.FC = () => {
       const res = await fetch('/api/quizzes');
       if (res.ok) {
         const dbQuizzes = await res.json();
-        // Update local storage with latest cloud data
-        localStorage.setItem('qf_lib_v4', JSON.stringify(dbQuizzes));
-        setLibrary(dbQuizzes);
+        if (Array.isArray(dbQuizzes) && dbQuizzes.length > 0) {
+          // Merge with any locally created quizzes to avoid overwriting offline progress
+          const offlineTests = offlineQuizService.getDownloadedQuizzes();
+          const mergedMap = new Map<string, StoredQuiz>();
+          dbQuizzes.forEach((q: StoredQuiz) => mergedMap.set(q.id, q));
+          offlineTests.forEach(q => {
+            if (!mergedMap.has(q.id)) mergedMap.set(q.id, q);
+          });
+          const mergedList = Array.from(mergedMap.values());
+          localStorage.setItem('qf_lib_v4', JSON.stringify(mergedList));
+          setLibrary(mergedList);
+          return;
+        }
       }
     } catch (e) {
-      console.warn("Quizzes fetch failed, using local cache", e);
-      const savedLib = localStorage.getItem('qf_lib_v4');
-      if (savedLib) setLibrary(JSON.parse(savedLib));
+      console.warn("Quizzes fetch failed, using local/offline cache", e);
     }
+    // Reliable offline and local fallback
+    const savedLib = localStorage.getItem('qf_lib_v4');
+    let lib: StoredQuiz[] = savedLib ? JSON.parse(savedLib) : [];
+    const offlineTests = offlineQuizService.getDownloadedQuizzes();
+    const existingIds = new Set(lib.map(q => q.id));
+    offlineTests.forEach(oq => {
+      if (!existingIds.has(oq.id)) {
+        lib.push(oq);
+        existingIds.add(oq.id);
+      }
+    });
+    if (lib.length > 0) setLibrary(lib);
   };
 
   const saveToLibrary = async (newQuiz: QuizType) => {
@@ -822,13 +873,16 @@ const App: React.FC = () => {
       const quizId = newQuiz.id || crypto.randomUUID();
       const localStoredQuiz: StoredQuiz = { ...newQuiz, id: quizId, createdAt: Date.now() };
 
-      // Save locally immediately
+      // Save locally and automatically download to offline cache
       const savedLib = localStorage.getItem('qf_lib_v4');
       const lib = savedLib ? JSON.parse(savedLib) : [];
       const filteredLib = lib.filter((q: StoredQuiz) => q.id !== quizId);
       const updatedLib = [localStoredQuiz, ...filteredLib].slice(0, 100);
       localStorage.setItem('qf_lib_v4', JSON.stringify(updatedLib));
       setLibrary(updatedLib);
+
+      // Auto-save to offline durable storage
+      offlineQuizService.downloadQuiz(localStoredQuiz).catch(() => {});
 
       // Upload to MongoDB backend via both endpoints to guarantee persistence
       try {
@@ -1386,6 +1440,30 @@ const App: React.FC = () => {
                <span>{mongoDbStatus?.connected ? 'MongoDB Live' : 'Local DB Mode'}</span>
              </button>
 
+             {/* Offline Tests Manager Pill */}
+             <button
+               onClick={() => setShowOfflineModal(true)}
+               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border transition-all ${
+                 !isOnline
+                   ? 'bg-amber-500/25 text-amber-300 border-amber-500/50 hover:bg-amber-500/35 animate-pulse'
+                   : downloadedQuizIds.size > 0
+                     ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/70'
+                     : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+               }`}
+               title="Offline Tests Manager - Download & Access Tests Offline"
+             >
+               {!isOnline ? (
+                 <WifiOff size={11} className="text-amber-400" />
+               ) : (
+                 <HardDrive size={11} className="text-emerald-400" />
+               )}
+               <span>
+                 {!isOnline 
+                   ? `Offline (${downloadedQuizIds.size})` 
+                   : `${downloadedQuizIds.size} Offline`}
+               </span>
+             </button>
+
              {authLoading ? (
                <div className="h-4 w-4 rounded-full border-2 border-blue-400 border-t-transparent animate-spin mr-1"></div>
              ) : user ? (
@@ -1451,6 +1529,9 @@ const App: React.FC = () => {
                 <button onClick={() => { setShowPhoneStorageModal(true); setShowTopMenu(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
                   <Smartphone size={18} className="text-blue-500" /> Phone Storage & Sync
                 </button>
+                <button onClick={() => { setShowOfflineModal(true); setShowTopMenu(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all">
+                  <HardDrive size={18} className="text-emerald-500" /> Offline Tests ({downloadedQuizIds.size})
+                </button>
                 <button onClick={() => { setShowJsonInfo(true); setShowTopMenu(false); }} className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
                   <Brackets size={18} className="text-indigo-500" /> JSON Format Guide
                 </button>
@@ -1509,6 +1590,42 @@ const App: React.FC = () => {
       )}
 
       <main className={`flex-1 container mx-auto px-4 max-w-4xl ${appState === 'QUIZ_IN_PROGRESS' ? 'p-0' : 'pb-28 pt-6'}`}>
+         {/* Offline Banner when device is offline / low-internet */}
+         {!isOnline && appState !== 'QUIZ_IN_PROGRESS' && (
+           <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 border border-amber-400/40 animate-in fade-in slide-in-from-top-2 duration-300">
+             <div className="flex items-center gap-3">
+               <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+                 <WifiOff size={18} />
+               </div>
+               <div>
+                 <div className="flex items-center gap-2">
+                   <span className="text-[8px] font-black uppercase tracking-widest bg-white/25 px-1.5 py-0.5 rounded-md">Offline Mode</span>
+                   <h4 className="font-black text-xs sm:text-sm tracking-tight">Internet Disconnected / Low Signal</h4>
+                 </div>
+                 <p className="text-[10px] text-amber-100 font-medium leading-tight mt-0.5">
+                   Aapke {downloadedQuizIds.size} downloaded tests offline storage me ready hain aur bina internet practice kar sakte hain.
+                 </p>
+               </div>
+             </div>
+             <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+               <button
+                 onClick={() => {
+                   navigateTo('LIBRARY');
+                   setOfflineFilterOnly(true);
+                 }}
+                 className="flex-1 sm:flex-none px-3.5 py-1.5 bg-white text-amber-800 hover:bg-amber-50 font-black text-[9px] uppercase tracking-wider rounded-xl shadow-md active:scale-95 transition-all text-center"
+               >
+                 View Offline Tests
+               </button>
+               <button
+                 onClick={() => setShowOfflineModal(true)}
+                 className="px-3 py-1.5 bg-black/25 hover:bg-black/35 text-white font-black text-[9px] uppercase tracking-wider rounded-xl border border-white/20 transition-all"
+               >
+                 Manager
+               </button>
+             </div>
+           </div>
+         )}
          {/* Logout Confirmation Modal */}
        {showLogoutConfirm && (
          <div className="fixed inset-0 z-[350] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -2309,25 +2426,55 @@ const App: React.FC = () => {
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1">
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Learning Vault (Practice & Tests)</h3>
-                      {/* Main Category Filter Pills */}
-                      <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1.5 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                        <button 
-                          onClick={() => { setSelectedCategoryFilter('ALL'); setSelectedSubCategoryFilter('ALL'); }} 
-                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-                        >
-                          All Categories
-                        </button>
-                        {categories.filter(c => !c.parentId).map(c => (
-                          <button 
-                            key={c.id} 
-                            onClick={() => { setSelectedCategoryFilter(c.id); setSelectedSubCategoryFilter('ALL'); }} 
-                            className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
-                          >
-                            {c.name}
-                          </button>
-                        ))}
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Learning Vault (Practice & Tests)</h3>
+                        {offlineFilterOnly && (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-500 text-[8.5px] font-black uppercase">
+                            Offline Filter
+                          </span>
+                        )}
                       </div>
+                      <button
+                        onClick={() => setShowOfflineModal(true)}
+                        className="text-[9.5px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 shrink-0"
+                      >
+                        <CloudDownload size={12} /> Offline Manager ({downloadedQuizIds.size}) &rarr;
+                      </button>
+                    </div>
+
+                    {/* Main Category & Offline Filter Pills */}
+                    <div className="flex items-center gap-2 overflow-x-auto w-full pb-1.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      <button 
+                        onClick={() => { setSelectedCategoryFilter('ALL'); setSelectedSubCategoryFilter('ALL'); setOfflineFilterOnly(false); }} 
+                        className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' && !offlineFilterOnly ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        All Categories
+                      </button>
+
+                      {/* Offline Downloaded Filter Pill */}
+                      <button 
+                        onClick={() => setOfflineFilterOnly(!offlineFilterOnly)} 
+                        className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                          offlineFilterOnly 
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30' 
+                            : isDarkMode 
+                              ? 'bg-slate-800/80 border-slate-700 text-emerald-400 hover:bg-slate-700' 
+                              : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                        }`}
+                      >
+                        <HardDrive size={12} />
+                        Offline Ready ({downloadedQuizIds.size})
+                      </button>
+
+                      {categories.filter(c => !c.parentId).map(c => (
+                        <button 
+                          key={c.id} 
+                          onClick={() => { setSelectedCategoryFilter(c.id); setSelectedSubCategoryFilter('ALL'); setOfflineFilterOnly(false); }} 
+                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id && !offlineFilterOnly ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                        >
+                          {c.name}
+                        </button>
+                      ))}
                     </div>
 
                     {/* Sub-Category Filter Pills if Main Category selected */}
@@ -2356,10 +2503,11 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {library
                       .filter(q => {
+                        const matchesOffline = !offlineFilterOnly || downloadedQuizIds.has(q.id);
                         const matchesMainCat = selectedCategoryFilter === 'ALL' || q.categoryId === selectedCategoryFilter;
                         const matchesSubCat = selectedSubCategoryFilter === 'ALL' || q.subCategoryId === selectedSubCategoryFilter;
                         const matchesSearch = !librarySearchQuery.trim() || q.title.toLowerCase().includes(librarySearchQuery.toLowerCase());
-                        return matchesMainCat && matchesSubCat && matchesSearch;
+                        return matchesOffline && matchesMainCat && matchesSubCat && matchesSearch;
                       })
                       .map((q) => {
                         const catObj = categories.find(c => c.id === q.categoryId);
@@ -2433,6 +2581,37 @@ const App: React.FC = () => {
                             </div>
 
                              <div className="flex items-center gap-1 shrink-0">
+                               {/* Offline Download Quick Action */}
+                               {downloadedQuizIds.has(q.id) ? (
+                                 <button
+                                   onClick={async (e) => {
+                                     e.stopPropagation();
+                                     await offlineQuizService.removeDownloadedQuiz(q.id);
+                                     setSuccessMessage(`Removed offline copy of "${q.title}"`);
+                                     setTimeout(() => setSuccessMessage(null), 3000);
+                                   }}
+                                   className="p-1 rounded-lg text-emerald-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+                                   title="Saved Offline on this device - Click to remove"
+                                 >
+                                   <CheckCircle2 size={13} className="text-emerald-500" />
+                                 </button>
+                               ) : (
+                                 <button
+                                   onClick={async (e) => {
+                                     e.stopPropagation();
+                                     const res = await offlineQuizService.downloadQuiz(q);
+                                     if (res.success) {
+                                       setSuccessMessage(`✓ Downloaded "${q.title}" for offline practice!`);
+                                       setTimeout(() => setSuccessMessage(null), 3500);
+                                     }
+                                   }}
+                                   className="p-1 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-all"
+                                   title="Download to phone for offline practice"
+                                 >
+                                   <CloudDownload size={13} />
+                                 </button>
+                               )}
+
                                <button 
                                  onClick={() => handleInitiateQuiz(q)}
                                  className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:from-emerald-400 hover:to-teal-400 transition-all shadow-md shadow-emerald-500/30 active:scale-95 flex items-center gap-1">
@@ -2448,7 +2627,37 @@ const App: React.FC = () => {
                                  </button>
 
                                  {activeMenuQuizId === q.id && (
-                                   <div className="absolute right-0 top-full mt-1 w-40 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                                   <div className="absolute right-0 top-full mt-1 w-44 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                                     {/* Offline Download Option */}
+                                     {downloadedQuizIds.has(q.id) ? (
+                                       <button 
+                                         onClick={async (e) => { 
+                                           e.stopPropagation();
+                                           setActiveMenuQuizId(null); 
+                                           await offlineQuizService.removeDownloadedQuiz(q.id);
+                                           setSuccessMessage(`Removed offline copy of "${q.title}"`);
+                                           setTimeout(() => setSuccessMessage(null), 3000);
+                                         }}
+                                         className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-1.5"
+                                       >
+                                         <Trash2 size={11} /> Remove Offline Copy
+                                       </button>
+                                     ) : (
+                                       <button 
+                                         onClick={async (e) => { 
+                                           e.stopPropagation();
+                                           setActiveMenuQuizId(null); 
+                                           const res = await offlineQuizService.downloadQuiz(q);
+                                           if (res.success) {
+                                             setSuccessMessage(`✓ Downloaded "${q.title}" for offline practice!`);
+                                             setTimeout(() => setSuccessMessage(null), 3500);
+                                           }
+                                         }}
+                                         className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-1.5"
+                                       >
+                                         <CloudDownload size={11} /> Save Offline (Phone)
+                                       </button>
+                                     )}
                                      <button 
                                        onClick={(e) => { 
                                          e.stopPropagation();
@@ -2456,7 +2665,7 @@ const App: React.FC = () => {
                                          setAuditTargetQuiz(q);
                                          setShowAiAuditModal(true);
                                        }}
-                                       className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-1.5"
+                                       className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5"
                                      >
                                        <ShieldCheck size={11} /> AI Audit & Fix Keys
                                      </button>
@@ -2496,12 +2705,41 @@ const App: React.FC = () => {
                         );
                       })}
                     {library.filter(q => {
+                      const matchesOffline = !offlineFilterOnly || downloadedQuizIds.has(q.id);
                       const matchesMainCat = selectedCategoryFilter === 'ALL' || q.categoryId === selectedCategoryFilter;
                       const matchesSubCat = selectedSubCategoryFilter === 'ALL' || q.subCategoryId === selectedSubCategoryFilter;
                       const matchesSearch = !librarySearchQuery.trim() || q.title.toLowerCase().includes(librarySearchQuery.toLowerCase());
-                      return matchesMainCat && matchesSubCat && matchesSearch;
+                      return matchesOffline && matchesMainCat && matchesSubCat && matchesSearch;
                     }).length === 0 && (
-                      <div className="col-span-full py-12 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">No quizzes found matching your filters...</div>
+                      <div className="col-span-full py-12 text-center p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                        {offlineFilterOnly ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <HardDrive size={24} className="text-emerald-500 opacity-60" />
+                            <p className="text-xs font-black text-slate-700 dark:text-slate-300">No Offline Tests Downloaded Yet</p>
+                            <p className="text-[10px] text-slate-400 max-w-xs">
+                              Aap kisi bhi test ke download icon pe click karke ya Offline Manager se tests ko device me save kar sakte hain.
+                            </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <button
+                                onClick={() => setShowOfflineModal(true)}
+                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md"
+                              >
+                                Download All Offline
+                              </button>
+                              <button
+                                onClick={() => setOfflineFilterOnly(false)}
+                                className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-bold"
+                              >
+                                Clear Filter
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="opacity-50 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                            No quizzes found matching your filters...
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                </div>
@@ -3283,6 +3521,18 @@ const App: React.FC = () => {
           isDarkMode={isDarkMode}
         />
       )}
+
+      {/* OFFLINE TESTS & LOW-INTERNET STORAGE MODAL */}
+      <OfflineManagerModal
+        isOpen={showOfflineModal}
+        onClose={() => setShowOfflineModal(false)}
+        quizzes={library}
+        isDarkMode={isDarkMode}
+        onStartQuiz={(selectedQuiz) => {
+          setShowOfflineModal(false);
+          handleInitiateQuiz(selectedQuiz);
+        }}
+      />
 
       {appState === 'IDLE' && (
         <nav className={`fixed bottom-4 left-1/2 -translate-x-1/2 backdrop-blur-xl border px-3 py-2.5 sm:py-3 rounded-3xl shadow-2xl shadow-blue-500/15 flex items-center gap-1.5 sm:gap-2 z-[90] ${isDarkMode ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200'}`}>

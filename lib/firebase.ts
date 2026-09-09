@@ -1,64 +1,75 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  initializeFirestore, 
-  getFirestore,
-  persistentLocalCache, 
-  persistentMultipleTabManager,
-  doc,
-  getDocFromServer,
-  Firestore
-} from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-
-const firebaseConfig = {
-  projectId: "effortless-complex-4cf5x",
-  appId: "1:5158052190:web:ad687f8d69ec3b59abafcf",
-  apiKey: "AIzaSyAOzZhYw-99me2b8p2o224Z8Fx1I1jU4jg",
-  authDomain: "effortless-complex-4cf5x.firebaseapp.com",
-  firestoreDatabaseId: "ai-studio-rohitquizflash-5f261794-5b3c-4f09-885d-fe0486c6b282",
-  storageBucket: "effortless-complex-4cf5x.firebasestorage.app",
-  messagingSenderId: "5158052190",
-  measurementId: ""
-};
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-let firestoreInstance: Firestore;
-try {
-  firestoreInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
-  }, "ai-studio-rohitquizflash-5f261794-5b3c-4f09-885d-fe0486c6b282");
-} catch (e) {
-  try {
-    firestoreInstance = getFirestore(app, "ai-studio-rohitquizflash-5f261794-5b3c-4f09-885d-fe0486c6b282");
-  } catch (err) {
-    firestoreInstance = getFirestore(app);
-  }
-}
-
-export const db = firestoreInstance;
+// CRITICAL: Connect directly to the provisioned firestore database ID
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 /**
  * Validates connection to Firestore as per system skills guidelines.
  */
 export async function testFirestoreConnection() {
   try {
-    // Attempt to fetch an allowed document to verify connectivity without permission errors
-    await getDocFromServer(doc(db, 'settings', 'quiz_config'));
-    console.log("Firestore connection verified.");
+    await getDocFromServer(doc(db, 'settings', 'connection_test'));
+    console.log("Firestore connection verified successfully.");
   } catch (error: any) {
-    // If the error is 'unavailable', it's a network/connection issue
-    if (error?.code === 'unavailable') {
-      console.warn("Firestore appears to be offline or unreachable. Check your network.");
-    } else if (error?.code === 'permission-denied') {
-      // This technically proves the server is REACHABLE, but permissions are tight
-      console.log("Firestore reachable (Permission Denied for test doc, which is expected for some paths).");
+    if (error?.message?.includes('the client is offline') || error?.code === 'unavailable') {
+      console.warn("Please check your Firebase configuration or network connection.");
     } else {
-      console.error("Firestore connection diagnostic error:", error);
+      console.log("Firestore test connection response:", error?.message || error);
     }
   }
 }
+
