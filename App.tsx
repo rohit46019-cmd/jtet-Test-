@@ -20,7 +20,7 @@ import { TestSummary } from './components/TestSummary';
 import { TestSolutionsPage } from './components/TestSolutionsPage';
 import { auditAndFixQuizQuestions } from './services/geminiService';
 import { quizSessionService } from './services/quizSessionService';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trophy, RefreshCcw, BookOpen, Trash2, Home, LayoutGrid, Bookmark, 
   Sparkles, Smartphone, Star, Zap, CheckCircle2, XCircle, X, 

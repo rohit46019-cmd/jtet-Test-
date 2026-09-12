@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { Quiz as QuizType, UserAnswer, BookmarkedQuestion, QuizConfig, Question, formatDuration } from '../types';
 import { quizSessionService } from '../services/quizSessionService';

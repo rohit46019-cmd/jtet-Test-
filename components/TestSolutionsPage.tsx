@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, CheckCircle2, XCircle, Bookmark, Sparkles, 
   ChevronLeft, ChevronRight, Check, X, Brain, Grid, RotateCcw, Clock, Search, Filter
