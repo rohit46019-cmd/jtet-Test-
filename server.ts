@@ -243,9 +243,9 @@ function getActiveMongoUri(): string {
 let activeMongoUri = getActiveMongoUri();
 let client: MongoClient | null = null;
 let db: any = null;
-let isConnectingMongo = false;
 let lastMongoError: string | null = null;
 const failedAuthUris = new Set<string>();
+let mongoClientPromise: Promise<any> | null = null;
 
 function cleanForMongo(obj: any) {
   if (!obj || typeof obj !== 'object') return obj;
@@ -261,17 +261,24 @@ async function connectToMongoDB(customUri?: string, forceRetry = false) {
   }
 
   // If already connected with the same URI, return existing database
-  if (db && !customUri) return db;
+  if (db && !customUri && !forceRetry) return db;
 
   // If this URI already failed auth and forceRetry is false, skip repeated failed connections
   if (!forceRetry && !customUri && failedAuthUris.has(uriToUse)) {
     return null;
   }
 
-  if (isConnectingMongo) return db;
+  // Use connection promise caching to prevent race conditions during concurrent requests
+  if (mongoClientPromise && !customUri && !forceRetry) {
+    try {
+      await mongoClientPromise;
+      return db;
+    } catch (err) {
+      return null;
+    }
+  }
 
-  isConnectingMongo = true;
-  try {
+  const performConnect = async () => {
     if (client) {
       try { await client.close(); } catch (_) {}
       client = null;
@@ -279,8 +286,8 @@ async function connectToMongoDB(customUri?: string, forceRetry = false) {
     }
 
     const newClient = new MongoClient(uriToUse, {
-      serverSelectionTimeoutMS: 4000,
-      connectTimeoutMS: 4000,
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 3000,
     });
     await newClient.connect();
     client = newClient;
@@ -290,30 +297,46 @@ async function connectToMongoDB(customUri?: string, forceRetry = false) {
     failedAuthUris.delete(uriToUse);
 
     console.log('[Storage] Connected successfully to MongoDB database (quizflash).');
-    isConnectingMongo = false;
     return db;
-  } catch (err: any) {
-    isConnectingMongo = false;
-    const errMsg = err.message || String(err);
-    if (errMsg.includes('auth') || errMsg.includes('Authentication') || errMsg.includes('bad auth')) {
-      lastMongoError = 'MongoDB Atlas Authentication Failed: User or password was not accepted by cluster0.1e9ikck.mongodb.net. Please check Database Access in your MongoDB Atlas dashboard.';
-      failedAuthUris.add(uriToUse);
-    } else {
+  };
+
+  if (!customUri && !forceRetry) {
+    mongoClientPromise = performConnect();
+    try {
+      await mongoClientPromise;
+      return db;
+    } catch (err: any) {
+      mongoClientPromise = null; // Reset promise so we can retry on next request
+      const errMsg = err.message || String(err);
+      if (errMsg.includes('auth') || errMsg.includes('Authentication') || errMsg.includes('bad auth')) {
+        lastMongoError = 'MongoDB Atlas Authentication Failed. Please check Database Access in your MongoDB Atlas dashboard.';
+        failedAuthUris.add(uriToUse);
+      } else {
+        lastMongoError = errMsg;
+      }
+
+      if (client) {
+        try { await client.close(); } catch (_) {}
+        client = null;
+      }
+      db = null;
+
+      if (!failedAuthUris.has(uriToUse)) {
+        console.log('[Storage] MongoDB connection notice: Continuing on local storage cache:', errMsg);
+      }
+      return null;
+    }
+  } else {
+    // For custom or forced reconnections, bypass caching
+    try {
+      const database = await performConnect();
+      return database;
+    } catch (err: any) {
+      const errMsg = err.message || String(err);
       lastMongoError = errMsg;
+      db = null;
+      return null;
     }
-
-    if (client) {
-      try {
-        await client.close();
-      } catch (_) {}
-      client = null;
-    }
-    db = null;
-
-    if (!failedAuthUris.has(uriToUse) || customUri) {
-      console.log('[Storage] MongoDB connection notice: Continuing on local storage cache:', errMsg);
-    }
-    return null;
   }
 }
 
