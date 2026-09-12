@@ -1188,7 +1188,7 @@ const distPath = path.join(process.cwd(), 'dist');
 
 if (process.env.NODE_ENV === 'production' || process.env.VERCEL === '1') {
   app.use(express.static(distPath));
-  app.get('*all', (req, res) => {
+  app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
@@ -1204,7 +1204,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
     
-    app.get('*all', async (req, res, next) => {
+    app.get('*', async (req, res, next) => {
       try {
         const url = req.originalUrl;
         const rawHtml = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
@@ -1223,9 +1223,6 @@ async function startServer() {
 
 if (process.env.VERCEL !== '1') {
   startServer();
-} else {
-  // When running on Vercel, connect to MongoDB when module loads
-  connectToMongoDB().catch(() => {});
 }
 
 export default app;
