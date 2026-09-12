@@ -228,7 +228,8 @@ function getActiveMongoUri(): string {
     process.env.MONGODB_URI,
     process.env.MONGO_URI,
     process.env.MONGODB_URL,
-    process.env.DATABASE_URL
+    process.env.DATABASE_URL,
+    'mongodb+srv://delimi4871_db_user:e6ePNScfys1E09sB@cluster0.0zaowgt.mongodb.net/?appName=Cluster0'
   ];
   for (const raw of envUris) {
     const uri = sanitizeMongoUri(raw);

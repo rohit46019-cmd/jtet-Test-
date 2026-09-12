@@ -26,7 +26,7 @@ import {
   Sparkles, Smartphone, Star, Zap, CheckCircle2, XCircle, X, 
   MessageSquare, ArrowRight, Sun, Moon, Maximize, Play, Settings, 
   ShieldCheck, Dna, Info, ChevronDown, ChevronUp, AlertCircle, Maximize2,
-  ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Tag, Layers, LogOut, Globe, Plus,
+  ClipboardList, FileType, Send, Code, Brackets, Shield, Menu, Edit2, Download, MoreVertical, FolderPlus, Folder, Tag, Layers, LogOut, Globe, Plus,
   Cloud, HardDrive, CloudUpload, CloudDownload, Database, Save, Timer, RotateCcw, Brain, CheckSquare,
   Search, Loader2, ExternalLink, Check, AlertTriangle, Upload
 } from 'lucide-react';
@@ -880,6 +880,58 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
+  const saveUserSettingsToMongo = async (updates: { isDarkMode?: boolean; aiLanguage?: string; quizDifficulty?: string }) => {
+    if (!user || !user.uid) return;
+    try {
+      await fetch(`/api/users/${user.uid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preferences: {
+            isDarkMode: updates.isDarkMode !== undefined ? updates.isDarkMode : isDarkMode,
+            aiLanguage: updates.aiLanguage !== undefined ? updates.aiLanguage : aiLanguage,
+            quizDifficulty: updates.quizDifficulty !== undefined ? updates.quizDifficulty : quizDifficulty
+          }
+        })
+      });
+    } catch (e) {
+      console.warn("Failed to sync settings to MongoDB:", e);
+    }
+  };
+
+  // Load preferences from MongoDB on mount or when user changes
+  useEffect(() => {
+    if (user && user.uid) {
+      const fetchProfileAndSettings = async () => {
+        try {
+          const res = await fetch(`/api/users/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: user.uid, email: user.email })
+          });
+          if (res.ok) {
+            const dbUser = await res.json();
+            if (dbUser && dbUser.preferences) {
+              const prefs = dbUser.preferences;
+              if (prefs.isDarkMode !== undefined) {
+                setIsDarkMode(prefs.isDarkMode);
+              }
+              if (prefs.aiLanguage) {
+                setAiLanguage(prefs.aiLanguage);
+              }
+              if (prefs.quizDifficulty) {
+                setQuizDifficulty(prefs.quizDifficulty);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Could not sync profile settings on load", e);
+        }
+      };
+      fetchProfileAndSettings();
+    }
+  }, [user]);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
@@ -1497,7 +1549,7 @@ const App: React.FC = () => {
              <button onClick={toggleFullscreen} className="p-1.5 sm:p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white transition-all border border-slate-700" title="Full Screen">
                <Maximize2 size={16} />
              </button>
-             <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-1.5 sm:p-2 rounded-lg bg-slate-800 text-yellow-400 hover:bg-slate-700 transition-all border border-slate-700" title="Theme Toggle">
+             <button onClick={() => { const next = !isDarkMode; setIsDarkMode(next); saveUserSettingsToMongo({ isDarkMode: next }); }} className="p-1.5 sm:p-2 rounded-lg bg-slate-800 text-yellow-400 hover:bg-slate-700 transition-all border border-slate-700" title="Theme Toggle">
                {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
              </button>
           </div>
@@ -2310,7 +2362,7 @@ const App: React.FC = () => {
                              {['English', 'Hindi', 'Mixed (Hinglish)'].map(lang => (
                                 <button
                                    key={lang}
-                                   onClick={() => setAiLanguage(lang)}
+                                   onClick={() => { setAiLanguage(lang); saveUserSettingsToMongo({ aiLanguage: lang }); }}
                                    className={`p-2.5 sm:p-3 rounded-[1.25rem] text-[10px] sm:text-sm font-bold transition-all border-2 flex items-center justify-center text-center leading-tight ${
                                      aiLanguage === lang 
                                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-500 shadow-sm' 
@@ -2338,7 +2390,7 @@ const App: React.FC = () => {
                              ].map(diff => (
                                 <button
                                    key={diff.id}
-                                   onClick={() => setQuizDifficulty(diff.id as any)}
+                                   onClick={() => { setQuizDifficulty(diff.id as any); saveUserSettingsToMongo({ quizDifficulty: diff.id }); }}
                                    className={`p-2.5 sm:p-5 rounded-2xl sm:rounded-3xl text-center sm:text-left transition-all border-2 ${
                                      quizDifficulty === diff.id 
                                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-500 shadow-sm' 
@@ -2386,7 +2438,9 @@ const App: React.FC = () => {
 
             {tab === 'LIBRARY' && (
                <div className="animate-in slide-in-from-bottom-4 pt-0">
-                  <div className="flex flex-col gap-2 mb-2">
+                  {selectedCategoryFilter === 'ALL' && (
+                     <>
+                        <div className="flex flex-col gap-2 mb-3">
                     {/* Dynamic Real-time Test Search Bar - Placed at the very top */}
                     <div className="relative w-full">
                       <input
@@ -2394,14 +2448,14 @@ const App: React.FC = () => {
                         value={librarySearchQuery}
                         onChange={(e) => setLibrarySearchQuery(e.target.value)}
                         placeholder="Search tests by name..."
-                        className={`w-full pl-10 pr-8 py-2.5 rounded-xl text-xs font-bold outline-none border backdrop-blur-md shadow-sm transition-all ${
+                        className={`w-full pl-10 pr-8 py-2 rounded-lg text-xs font-bold outline-none border backdrop-blur-md shadow-xs transition-all ${
                           isDarkMode 
                             ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-blue-500/80 focus:ring-1 focus:ring-blue-500/20' 
-                            : 'bg-white border-slate-200 text-slate-900 placeholder-slate-450 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 shadow-3xs'
+                            : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10'
                         }`}
                       />
                       <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
-                        <Search size={14} />
+                        <Search size={13} />
                       </div>
                       {librarySearchQuery && (
                         <button
@@ -2413,38 +2467,39 @@ const App: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="flex flex-col gap-2 pt-1">
+                    <div className="flex flex-col gap-2">
                       <div className="flex items-center justify-between w-full">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Learning Vault (Practice & Tests)</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Practice Vault</h3>
                         <button
                           onClick={() => {
                             setNewFolderParentId('');
                             setShowCreateFolderModal(true);
                           }}
-                          className={`text-[9.5px] font-black uppercase tracking-widest backdrop-blur-md px-3 py-1.5 rounded-xl border flex items-center gap-1 transition-all shadow-sm ${
+                          className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border flex items-center gap-1 transition-all shadow-xs ${
                             isDarkMode
-                              ? 'text-emerald-300 hover:text-white bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-500/30'
-                              : 'text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border-emerald-300'
+                              ? 'text-emerald-300 hover:text-white bg-emerald-950/45 hover:bg-emerald-900/60 border-emerald-500/30'
+                              : 'text-emerald-700 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
                           }`}
                         >
                           <FolderPlus size={11} /> Create Folder
                         </button>
                       </div>
+
                       {/* Main Category Filter Pills */}
-                      <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1.5 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      <div className="flex items-center gap-1.5 overflow-x-auto w-full pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         <button 
                           onClick={() => { setSelectedCategoryFilter('ALL'); setSelectedSubCategoryFilter('ALL'); }} 
-                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === 'ALL' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                         >
-                          All Categories
+                          📂 All folders
                         </button>
                         {categories.filter(c => !c.parentId).map(c => (
                           <button 
                             key={c.id} 
                             onClick={() => { setSelectedCategoryFilter(c.id); setSelectedSubCategoryFilter('ALL'); }} 
-                            className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+                            className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${selectedCategoryFilter === c.id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs border-transparent' : isDarkMode ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                           >
-                            {c.name}
+                            {c.icon || '📁'} {c.name}
                           </button>
                         ))}
                       </div>
@@ -2452,28 +2507,112 @@ const App: React.FC = () => {
 
                     {/* Sub-Category Filter Pills if Main Category selected */}
                     {selectedCategoryFilter !== 'ALL' && categories.filter(c => c.parentId === selectedCategoryFilter).length > 0 && (
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pt-1">
-
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         <button 
                           onClick={() => setSelectedSubCategoryFilter('ALL')} 
-                          className={`px-3 py-1 rounded-lg text-[10px] font-extrabold transition-all whitespace-nowrap ${selectedSubCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-xs' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
+                          className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all whitespace-nowrap ${selectedSubCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-3xs' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
                         >
-                          All
+                          All Subfolders
                         </button>
                         {categories.filter(c => c.parentId === selectedCategoryFilter).map(sub => (
                           <button 
                             key={sub.id} 
                             onClick={() => setSelectedSubCategoryFilter(sub.id)} 
-                            className={`px-3 py-1 rounded-lg text-[10px] font-extrabold transition-all whitespace-nowrap ${selectedSubCategoryFilter === sub.id ? 'bg-blue-600 text-white shadow-xs' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
+                            className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all whitespace-nowrap ${selectedSubCategoryFilter === sub.id ? 'bg-blue-600 text-white shadow-3xs' : isDarkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}
                           >
-                            {sub.name}
+                            {sub.icon || '📁'} {sub.name}
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* FOLDERS GRID: Show beautifully when All Categories is selected */}
+                  {selectedCategoryFilter === 'ALL' && !librarySearchQuery.trim() && (
+                    <div className="mb-4 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">Created Folders ({categories.filter(c => !c.parentId).length})</h4>
+                      </div>
+                      <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 gap-1.5">
+                        {/* Premium Create Folder Card */}
+                        <button
+                          onClick={() => {
+                            setNewFolderParentId('');
+                            setShowCreateFolderModal(true);
+                          }}
+                          className={`p-2.5 rounded-xl border border-dashed flex flex-col items-center justify-center text-center gap-1 cursor-pointer active:scale-95 transition-all min-h-[64px] ${
+                            isDarkMode
+                              ? 'border-slate-800 hover:border-emerald-500/50 hover:bg-emerald-950/15 text-emerald-400 bg-slate-900/20'
+                              : 'border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-emerald-600 bg-slate-50/20'
+                          }`}
+                        >
+                          <FolderPlus size={14} className="text-emerald-500" />
+                          <span className="text-[9px] font-black uppercase tracking-wider">New Folder</span>
+                        </button>
+
+                        {/* Render all folders */}
+                        {categories.filter(c => !c.parentId).map(c => {
+                          const folderQuizzes = library.filter(q => q.categoryId === c.id);
+                          return (
+                            <div
+                              key={c.id}
+                              onClick={() => setSelectedCategoryFilter(c.id)}
+                              className={`p-2 rounded-xl border flex flex-col justify-between cursor-pointer group active:scale-[0.98] transition-all min-h-[64px] ${
+                                isDarkMode
+                                  ? 'bg-slate-900 border-slate-800/80 hover:border-slate-700 text-white'
+                                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-900 shadow-3xs'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <span className="text-sm shrink-0">{c.icon || '📁'}</span>
+                                <span className={`text-[7.5px] font-bold px-1 py-0.2 rounded-full ${
+                                  isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                  {folderQuizzes.length} tests
+                                </span>
+                              </div>
+                              <div className="mt-1.5 min-w-0">
+                                <h5 className="text-[9.5px] font-bold truncate tracking-tight">{c.name}</h5>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Breadcrumb Folder Header when inside a selected folder */}
+                  {selectedCategoryFilter !== 'ALL' && (
+                    <div className="flex items-center justify-between mb-3 bg-slate-100/50 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-200/50 dark:border-slate-800/50 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-base shrink-0">
+                          {categories.find(c => c.id === selectedCategoryFilter)?.icon || '📁'}
+                        </span>
+                        <div className="min-w-0">
+                          <h4 className="text-[8px] font-black uppercase tracking-wider text-slate-400">Current Folder</h4>
+                          <h3 className="text-[10px] font-black text-slate-900 dark:text-white truncate uppercase">{categories.find(c => c.id === selectedCategoryFilter)?.name}</h3>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { setSelectedCategoryFilter('ALL'); setSelectedSubCategoryFilter('ALL'); }}
+                        className={`px-2 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-wider border transition-all ${
+                          isDarkMode
+                            ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700'
+                            : 'bg-white border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                        }`}
+                      >
+                        ← Back
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      {selectedCategoryFilter === 'ALL' ? 'All Practice Tests' : 'Quizzes In Folder'}
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {library
                       .filter(q => {
                         const matchesMainCat = selectedCategoryFilter === 'ALL' || q.categoryId === selectedCategoryFilter;
@@ -2514,11 +2653,11 @@ const App: React.FC = () => {
                         const lTheme = libThemes[tIndex % libThemes.length];
 
                         return (
-                          <div key={q.id} className={`group p-2.5 rounded-2xl border shadow-sm hover:shadow-md hover:scale-[1.01] transition-all flex items-center gap-3 ${lTheme.bg} ${lTheme.border}`}>
+                          <div key={q.id} className={`group p-2 rounded-xl border shadow-xs hover:shadow-sm hover:scale-[1.005] transition-all flex items-center gap-2 ${lTheme.bg} ${lTheme.border}`}>
                             <TopicImage 
                               title={q.title} 
                               customUrl={q.thumbnailUrl || catObj?.thumbnailUrl}
-                              className={`w-10 h-10 shrink-0 rounded-[0.8rem] object-cover border shadow-sm ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}
+                              className={`w-8 h-8 shrink-0 rounded-lg object-cover border shadow-3xs ${isDarkMode ? 'border-slate-800' : 'border-slate-150'}`}
                             />
                             
                             <div className="flex-1 min-w-0">
@@ -2624,6 +2763,265 @@ const App: React.FC = () => {
                       <div className="col-span-full py-12 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">No quizzes found matching your filters...</div>
                     )}
                   </div>
+                     </>
+                  )}
+
+                  {/* IMMERSIVE FULL-SCREEN SLIDING FOLDER PAGE */}
+                  <AnimatePresence>
+                    {selectedCategoryFilter !== 'ALL' && (
+                      <motion.div
+                        initial={{ x: '100%', opacity: 0.95 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: '100%', opacity: 0.95 }}
+                        transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+                        className={`fixed inset-0 z-[200] w-full h-full flex flex-col p-5 sm:p-8 overflow-y-auto no-scrollbar ${
+                          isDarkMode ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
+                        }`}
+                      >
+                        {/* Folder Header Banner */}
+                        <div className="flex items-center justify-between mb-6 shrink-0">
+                          <button
+                            onClick={() => { setSelectedCategoryFilter('ALL'); setSelectedSubCategoryFilter('ALL'); }}
+                            className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border transition-all ${
+                              isDarkMode
+                                ? 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
+                                : 'bg-white border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-50 shadow-3xs'
+                            }`}
+                          >
+                            ← Back to Vault
+                          </button>
+                          <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${
+                            isDarkMode ? 'bg-blue-950/60 text-blue-400 border border-blue-900/30' : 'bg-blue-50 text-blue-600 border border-blue-150'
+                          }`}>
+                            Practice Folder
+                          </span>
+                        </div>
+
+                        {/* Folder details banner */}
+                        {(() => {
+                          const currentFolder = categories.find(c => c.id === selectedCategoryFilter);
+                          const folderQuizzes = library.filter(q => q.categoryId === selectedCategoryFilter);
+                          return (
+                            <div className="flex flex-col gap-4 mb-6 shrink-0 animate-in fade-in slide-in-from-top-2 duration-300">
+                              <div className="flex items-center gap-3">
+                                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl bg-gradient-to-tr from-blue-600/10 to-indigo-600/5 border border-blue-500/20 shadow-xs">
+                                  {currentFolder?.icon || '📁'}
+                                </div>
+                                <div className="min-w-0">
+                                  <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-none uppercase truncate">{currentFolder?.name}</h1>
+                                  <p className="text-[10.5px] text-slate-400 font-bold uppercase tracking-wider mt-2">
+                                    Practice Vault &bull; {folderQuizzes.length} Tests Active
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Search bar inside this folder specifically */}
+                              <div className="relative w-full mt-1">
+                                <input
+                                  type="text"
+                                  value={librarySearchQuery}
+                                  onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                                  placeholder={`Search inside ${currentFolder?.name}...`}
+                                  className={`w-full pl-10 pr-8 py-2 rounded-lg text-xs font-bold outline-none border backdrop-blur-md shadow-xs transition-all ${
+                                    isDarkMode 
+                                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-blue-500/80' 
+                                      : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500'
+                                  }`}
+                                />
+                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none">
+                                  <Search size={13} />
+                                </div>
+                                {librarySearchQuery && (
+                                  <button
+                                    onClick={() => setLibrarySearchQuery('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
+                                  >
+                                    <X size={10} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Sub-Category Filter Pills if Main Category selected */}
+                        {categories.filter(c => c.parentId === selectedCategoryFilter).length > 0 && (
+                          <div className="mb-5 shrink-0 animate-in fade-in duration-300 delay-100">
+                            <h5 className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-2">Subfolders</h5>
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                              <button 
+                                onClick={() => setSelectedSubCategoryFilter('ALL')} 
+                                className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all whitespace-nowrap ${selectedSubCategoryFilter === 'ALL' ? 'bg-blue-600 text-white shadow-3xs' : isDarkMode ? 'bg-slate-900 text-slate-300 border border-slate-800' : 'bg-slate-100 text-slate-700'}`}
+                              >
+                                All Subfolders
+                              </button>
+                              {categories.filter(c => c.parentId === selectedCategoryFilter).map(sub => (
+                                <button 
+                                  key={sub.id} 
+                                  onClick={() => setSelectedSubCategoryFilter(sub.id)} 
+                                  className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all whitespace-nowrap ${selectedSubCategoryFilter === sub.id ? 'bg-blue-600 text-white shadow-3xs' : isDarkMode ? 'bg-slate-900 text-slate-300 border border-slate-800' : 'bg-slate-100 text-slate-700'}`}
+                                >
+                                  {sub.icon || '📁'} {sub.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Quizzes Grid layout */}
+                        <div className="flex-1 min-h-0 animate-in fade-in duration-300 delay-150">
+                          <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Quizzes In Folder</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pb-8">
+                            {library
+                              .filter(q => {
+                                const matchesMainCat = q.categoryId === selectedCategoryFilter;
+                                const matchesSubCat = selectedSubCategoryFilter === 'ALL' || q.subCategoryId === selectedSubCategoryFilter;
+                                const matchesSearch = !librarySearchQuery.trim() || q.title.toLowerCase().includes(librarySearchQuery.toLowerCase());
+                                return matchesMainCat && matchesSubCat && matchesSearch;
+                              })
+                              .map((q) => {
+                                const catObj = categories.find(c => c.id === q.categoryId);
+                                const subCatObj = categories.find(c => c.id === q.subCategoryId);
+                                
+                                const rootCats = categories.filter(c => !c.parentId);
+                                const catIndex = rootCats.findIndex(c => c.id === q.categoryId);
+                                const tIndex = catIndex >= 0 ? catIndex : 0;
+                                const libThemes = [
+                                  {
+                                    bg: isDarkMode ? 'bg-violet-950/40 hover:bg-violet-900/60' : 'bg-gradient-to-br from-violet-50/80 to-fuchsia-50 border-violet-100',
+                                    border: isDarkMode ? 'border-violet-900/50 hover:border-violet-700' : 'hover:border-violet-300',
+                                  },
+                                  {
+                                    bg: isDarkMode ? 'bg-cyan-950/40 hover:bg-cyan-900/60' : 'bg-gradient-to-br from-cyan-50/80 to-teal-50 border-cyan-100',
+                                    border: isDarkMode ? 'border-cyan-900/50 hover:border-cyan-700' : 'hover:border-cyan-300',
+                                  },
+                                  {
+                                    bg: isDarkMode ? 'bg-rose-950/40 hover:bg-rose-900/60' : 'bg-gradient-to-br from-rose-50/80 to-pink-50 border-rose-100',
+                                    border: isDarkMode ? 'border-rose-900/50 hover:border-rose-700' : 'hover:border-rose-300',
+                                  },
+                                  {
+                                    bg: isDarkMode ? 'bg-amber-950/40 hover:bg-amber-900/60' : 'bg-gradient-to-br from-amber-50/80 to-orange-50 border-amber-100',
+                                    border: isDarkMode ? 'border-amber-900/50 hover:border-amber-700' : 'hover:border-amber-300',
+                                  },
+                                  {
+                                    bg: isDarkMode ? 'bg-emerald-950/40 hover:bg-emerald-900/60' : 'bg-gradient-to-br from-emerald-50/80 to-teal-50 border-emerald-100',
+                                    border: isDarkMode ? 'border-emerald-900/50 hover:border-emerald-700' : 'hover:border-emerald-300',
+                                  }
+                                ];
+                                const lTheme = libThemes[tIndex % libThemes.length];
+
+                                return (
+                                  <div key={q.id} className={`group p-2 rounded-xl border shadow-xs hover:shadow-sm hover:scale-[1.005] transition-all flex items-center gap-2 ${lTheme.bg} ${lTheme.border}`}>
+                                    <TopicImage 
+                                      title={q.title} 
+                                      customUrl={q.thumbnailUrl || catObj?.thumbnailUrl}
+                                      className={`w-8 h-8 shrink-0 rounded-lg object-cover border shadow-3xs ${isDarkMode ? 'border-slate-800' : 'border-slate-150'}`}
+                                    />
+                                    
+                                    <div className="flex-1 min-w-0">
+                                       {editingQuizId === q.id ? (
+                                         <div className="flex items-center gap-1 my-0.5" onClick={e => e.stopPropagation()}>
+                                           <input 
+                                             type="text" 
+                                             value={editingTitleText} 
+                                             onChange={e => setEditingTitleText(e.target.value)} 
+                                             className={`w-full px-2 py-0.5 text-[10px] font-bold border rounded outline-none focus:ring-1 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-800 text-white border-slate-700' : 'bg-slate-50 text-slate-900 border-slate-200'}`}
+                                           />
+                                           <button onClick={(e) => saveRenameQuiz(q.id, e)} className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-wider shrink-0">Save</button>
+                                         </div>
+                                       ) : (
+                                         <div className="min-w-0">
+                                           <h4 className="font-black text-[11px] sm:text-[12px] leading-tight text-slate-800 dark:text-slate-100 truncate tracking-tight">{q.title}</h4>
+                                           <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                              <span className="text-[7px] font-black uppercase tracking-wider text-blue-500">
+                                                {q.questions.length} QUESTIONS
+                                              </span>
+                                              {catObj && (
+                                                <span className={`text-[6.5px] font-bold px-1 py-0.2 rounded border ${isDarkMode ? 'bg-blue-950/60 text-blue-300 border-blue-900/50' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                                                  {catObj.icon} {catObj.name}
+                                                </span>
+                                              )}
+                                              {subCatObj && (
+                                                <span className={`text-[6.5px] font-bold px-1 py-0.2 rounded border ${isDarkMode ? 'bg-emerald-950/60 text-emerald-300 border-emerald-900/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                                                  {subCatObj.name}
+                                                </span>
+                                              )}
+                                           </div>
+                                         </div>
+                                       )}
+                                    </div>
+
+                                     <div className="flex items-center gap-1 shrink-0">
+                                       <button 
+                                         onClick={() => handleInitiateQuiz(q)}
+                                         className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:from-emerald-400 hover:to-teal-400 transition-all shadow-md shadow-emerald-500/30 active:scale-95 flex items-center gap-1">
+                                         <Play size={10} fill="currentColor" /> START
+                                       </button>
+                                       <div className="relative">
+                                         <button 
+                                           onClick={(e) => { e.stopPropagation(); setActiveMenuQuizId(activeMenuQuizId === q.id ? null : q.id); }}
+                                           className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all"
+                                           title="More Options"
+                                         >
+                                           <MoreVertical size={12} />
+                                         </button>
+
+                                         {activeMenuQuizId === q.id && (
+                                           <div className="absolute right-0 top-full mt-1 w-40 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                                             <button 
+                                               onClick={(e) => { 
+                                                 e.stopPropagation();
+                                                 setActiveMenuQuizId(null); 
+                                                 setAuditTargetQuiz(q);
+                                                 setShowAiAuditModal(true);
+                                               }}
+                                               className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-1.5"
+                                             >
+                                               <ShieldCheck size={11} /> AI Audit & Fix Keys
+                                             </button>
+                                             <button 
+                                               onClick={(e) => { setActiveMenuQuizId(null); startRenameQuiz(q, e); }}
+                                               className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5"
+                                             >
+                                               <Edit2 size={11} /> Rename
+                                             </button>
+                                             <button 
+                                               onClick={(e) => { 
+                                                 setActiveMenuQuizId(null); 
+                                                 setTransferModalQuiz(q);
+                                                 setTransferCatId(q.categoryId || '');
+                                                 setTransferSubCatId(q.subCategoryId || '');
+                                               }}
+                                               className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-1.5"
+                                             >
+                                               <FolderPlus size={11} /> Transfer Category
+                                             </button>
+                                             <div className="h-px bg-slate-100 dark:bg-slate-800 my-0.5 mx-1.5" />
+                                             <button 
+                                               onClick={(e) => {
+                                                 e.stopPropagation();
+                                                 setActiveMenuQuizId(null);
+                                                 setQuizToDelete(q.id);
+                                               }} 
+                                               className="w-full text-left px-2.5 py-1.5 text-[9.5px] font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-1.5"
+                                             >
+                                               <Trash2 size={11} /> Delete Quiz
+                                             </button>
+                                           </div>
+                                         )}
+                                       </div>
+                                     </div>
+                                  </div>
+                                );
+                              })}
+                            {library.filter(q => q.categoryId === selectedCategoryFilter).length === 0 && (
+                              <div className="col-span-full py-12 text-center opacity-40 text-[10px] font-bold uppercase tracking-widest">No quizzes inside this folder...</div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                </div>
             )}
 
