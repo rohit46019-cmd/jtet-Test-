@@ -1,5 +1,554 @@
 {
-  "quizzes": [],
+  "quizzes": [
+    {
+      "id": "ba1feb06-7dca-4ccb-8ecb-bd685f4fe7aa",
+      "title": "Chapter 13 - National Education Policy 2020",
+      "questions": [
+        {
+          "question": "According to NEP 2020, which pair is NOT correct about experiential learning?",
+          "options": [
+            "Teacher becomes more active than students; learning is connected with experience",
+            "It connects prior experience with new knowledge and positive transfer",
+            "It is based completely on traditional bookish knowledge",
+            "It develops real/scientific understanding through experiences and experiments"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Experiential learning is learner-active and experience-based; it is not completely based on traditional bookish knowledge.\n\nKey Concept: Learning by doing, reflection, experimentation and connection with prior experience are central to experiential learning.",
+          "id": "0b25d9b0-b4f3-459b-8c34-8a148d1d4460"
+        },
+        {
+          "question": "What skill is emphasized by contemporary education policies such as NEP 2020?",
+          "options": [
+            "Critical thinking",
+            "Competitive spirit",
+            "Passive reception",
+            "Simple recall"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "NEP 2020 emphasizes higher-order abilities such as critical thinking rather than passive reception or mere recall.\n\nKey Concept: Critical thinking involves analysing, evaluating and reasoning about information.",
+          "id": "ffa02e17-b597-48b5-829b-96e53fd71cf0"
+        },
+        {
+          "question": "NEP 2020 proposes that learning should primarily be:",
+          "options": [
+            "Teacher-oriented",
+            "Experiential",
+            "Behaviourist",
+            "Textbook-centric"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "NEP 2020 promotes experiential learning, where learners gain understanding through meaningful experiences and activities.\n\nKey Concept: Experiential learning connects knowledge with real situations and active participation.",
+          "id": "3edce906-12b5-4824-9261-ffac7b201ac0"
+        },
+        {
+          "question": "According to NEP 2020, which language should generally be used to interact with primary-school children during teaching-learning?",
+          "options": [
+            "Only the regional language",
+            "Only Hindi",
+            "Only English",
+            "The children's mother tongue"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "The source answer emphasizes the use of children's mother tongue for primary-level interaction, supporting easier understanding and adjustment.\n\nKey Concept: NEP 2020 gives importance to home/local language and multilingualism in early education.",
+          "id": "27c701b7-7306-47e7-8377-bed805b89b44"
+        },
+        {
+          "question": "Which set contains pedagogical strategies promoted by NEP 2020?",
+          "options": [
+            "Drill/practice and rote memorisation",
+            "Drill/practice and inquiry learning",
+            "Inquiry-based learning and discussion-based approach",
+            "Drill/practice and discussion only"
+          ],
+          "correctAnswerIndex": 2,
+          "explanation": "NEP 2020 promotes inquiry and discussion rather than making drill and rote memorisation the dominant pedagogy.\n\nKey Concept: Learner-centred pedagogy encourages questioning, exploration, dialogue and active participation.",
+          "id": "5e9b1c8e-6bd1-4909-97e1-152e8914d9d7"
+        },
+        {
+          "question": "NEP 2020 recommends pedagogies that are:",
+          "options": [
+            "Exam-centric",
+            "Teacher-centric",
+            "Learner-centric",
+            "Exclusion-centric"
+          ],
+          "correctAnswerIndex": 2,
+          "explanation": "The policy places the learner at the centre of teaching-learning, with active participation and meaningful experiences.\n\nKey Concept: Learner-centred education focuses on learners' needs, interests, capabilities and active construction of understanding.",
+          "id": "e942efae-a3ee-48b4-bf7e-f468cc0cce7b"
+        },
+        {
+          "question": "NEP 2020 particularly emphasizes which educational direction?",
+          "options": [
+            "Multidisciplinary education",
+            "Rigid curriculum",
+            "Summative assessment only",
+            "Exam-centric pedagogy"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The policy promotes multidisciplinary education, allowing broader and more integrated learning across areas.\n\nKey Concept: Multidisciplinary learning helps students develop a wider perspective and connect ideas from different fields.",
+          "id": "2284e6e1-6701-47bb-91c0-657032f99746"
+        },
+        {
+          "question": "Assertion: NEP 2020 supports mother-tongue education up to the early grades. Reason: Young children understand meaningful concepts more quickly in their mother tongue. Choose the correct relationship.",
+          "options": [
+            "Both are true and the Reason correctly explains the Assertion",
+            "Both are true but the Reason does not explain the Assertion",
+            "Assertion is true but Reason is false",
+            "Both are false"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "Both statements are treated as true in the source, and the reason explains why mother-tongue instruction is educationally useful for young children.\n\nKey Concept: Familiar language can support comprehension, participation and conceptual understanding in early learning.",
+          "id": "031bb15a-715d-42fd-b0ff-601448dad11d"
+        },
+        {
+          "question": "Which methods of learning are emphasized by NEP 2020?",
+          "options": [
+            "Experiential and digital learning only",
+            "Scientific learning and learning by doing only",
+            "Experiential, digital and learning-by-doing but not scientific learning",
+            "Experiential, digital, scientific learning and learning by doing"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "The source marks all four listed approaches as emphasized.\n\nKey Concept: NEP 2020 encourages varied, active and technology-supported learning experiences rather than one rigid method.",
+          "id": "e46c088e-8b19-4554-b15c-f96ff194977e"
+        },
+        {
+          "question": "Which combination correctly describes the purposes of assessment under NEP 2020?",
+          "options": [
+            "Revise teaching-learning, optimize learning/development and support students inside and outside class",
+            "Generate fear, revise teaching and rank students",
+            "Only optimize learning and conduct examinations",
+            "Only support classroom learning"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "Assessment is intended to improve teaching-learning, optimize learning and development, and support students—not to create fear.\n\nKey Concept: Assessment should be developmental and improvement-oriented.",
+          "id": "0fc51325-214d-4102-b832-758d9d47d5e5"
+        },
+        {
+          "question": "NEP 2020 proposes a shift from:",
+          "options": [
+            "Standardization to flexibility",
+            "Formative to summative assessment",
+            "Conceptual understanding to learning-for-exams",
+            "Multidisciplinary education to rigidity"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The policy moves toward flexibility rather than rigid standardization.\n\nKey Concept: Flexibility allows curriculum, pedagogy and learning pathways to respond to diverse learners and contexts.",
+          "id": "c2c059f1-5964-4b1f-8683-0c767744b208"
+        },
+        {
+          "question": "How does NEP 2020 view multilingualism in classrooms?",
+          "options": [
+            "As a hindrance to learning",
+            "As an asset",
+            "As an unnecessary complication",
+            "As a barrier to inclusion"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "NEP 2020 treats multilingualism as an educational resource rather than a problem.\n\nKey Concept: Respecting multiple languages can strengthen inclusion, identity, participation and learning.",
+          "id": "35eff67b-ffa9-45dd-bd18-763bb834983a"
+        },
+        {
+          "question": "What does NEP 2020 propose to support retention of students from socioeconomically disadvantaged groups?",
+          "options": [
+            "Rote learning",
+            "Standardisation of curriculum and assessment",
+            "Performance-oriented testing",
+            "Relatable and meaningful curriculum"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "The policy proposes engaging and contextual learning so that disadvantaged learners can connect education with meaningful experiences.\n\nKey Concept: Relevance and engagement can improve participation and retention.",
+          "id": "7de5e2e8-86fb-4843-a730-181558b62b18"
+        },
+        {
+          "question": "Which pair is NOT proposed in NEP 2020?",
+          "options": [
+            "Increasing course content + standardized curriculum, pedagogy and assessment",
+            "Learning how to learn + holistic 360-degree progress report",
+            "Increasing course content + holistic progress report + standardized curriculum, pedagogy and assessment",
+            "Learning how to learn + increasing course content + standardized curriculum, pedagogy and assessment"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "NEP 2020 does not support increasing course content or rigid standardization as the desired direction.\n\nKey Concept: The policy stresses reduced content load, flexibility, conceptual understanding and holistic assessment.",
+          "id": "2767a5e4-3abb-4630-87a8-53712cac8834"
+        },
+        {
+          "question": "According to NEP 2020, education should emphasize:",
+          "options": [
+            "Conceptual understanding",
+            "Decontextualized content",
+            "Rote learning",
+            "Learning mainly for examinations"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The policy prioritizes conceptual understanding over rote learning and exam-oriented learning.\n\nKey Concept: Conceptual understanding means grasping relationships, meaning and application rather than memorising isolated facts.",
+          "id": "affbe21c-ef29-43cb-af99-11137dcd0e0c"
+        },
+        {
+          "question": "According to NEP 2020, a student's progress card should reflect:",
+          "options": [
+            "Norm-referenced ranking",
+            "Only criterion-referenced scores",
+            "Relative performance compared with classmates",
+            "Progress as well as the student's uniqueness"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "The proposed holistic progress card is meant to capture progress and the learner's uniqueness, rather than merely ranking students.\n\nKey Concept: Assessment should provide a broad picture of learner development.",
+          "id": "17ad5062-ac65-4c74-b29b-8d568aea3234"
+        },
+        {
+          "question": "To retain students from socioeconomically disadvantaged groups, NEP 2020 recommends curriculum and pedagogy that are:",
+          "options": [
+            "Exam-centred",
+            "Textbook-centred",
+            "Engaging and contextual",
+            "Standard and uniform"
+          ],
+          "correctAnswerIndex": 2,
+          "explanation": "Engaging and contextual learning can make schooling more meaningful and accessible for diverse learners.\n\nKey Concept: Contextualisation connects school knowledge with learners' lived experiences and needs.",
+          "id": "e3ea5f44-3a41-477f-9877-18e0feeb86b7"
+        },
+        {
+          "question": "The holistic 360-degree multidimensional progress card proposed by NEP 2020 includes:",
+          "options": [
+            "Only summative assessment",
+            "Only rote-memory skills",
+            "Only paper-pencil test grades",
+            "Self-assessment and peer-assessment"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "The 360-degree approach includes learner participation through self- and peer-assessment.\n\nKey Concept: Holistic assessment uses multiple sources and dimensions of evidence, not only teacher-given marks.",
+          "id": "8bece06d-fcaa-46d0-ae57-383df88b2cc4"
+        },
+        {
+          "question": "NEP 2020 proposes inclusion of which methods for children's assessment?",
+          "options": [
+            "Group work and self-assessment",
+            "Projects and standard tests",
+            "Standard tests and portfolios only",
+            "Norm-referenced and criterion-referenced tests"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The source highlights group work and self-assessment as proposed components of assessment.\n\nKey Concept: Alternative and participatory assessment methods can reveal learning processes that conventional tests may miss.",
+          "id": "31ab3886-d06a-4e51-8a33-81e2d30d00d9"
+        },
+        {
+          "question": "Which combination of features has NEP 2020 advocated?",
+          "options": [
+            "Holistic development, experiential learning, reduced curriculum content and multilingualism",
+            "Only rote learning and increased content",
+            "Only summative testing and standardization",
+            "Only exam preparation and monolingualism"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The policy advocates all four listed directions: holistic development, experiential learning, reduction of excessive content and multilingualism.\n\nKey Concept: NEP 2020 seeks broad, flexible and learner-centred development.",
+          "id": "d798d5ee-28fe-4269-8254-024607d92b15"
+        },
+        {
+          "question": "Which statement about NEP 2020 assessment proposals is NOT correct?",
+          "options": [
+            "It supports varied methods such as group work and role play",
+            "It proposes a shift from formative to summative assessment",
+            "It encourages self- and peer-assessment in addition to teacher assessment",
+            "It includes cognitive, affective and psychomotor progress in reporting"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "The incorrect statement is the claimed shift from formative to summative assessment. The policy emphasizes assessment for learning and holistic progress.\n\nKey Concept: NEP 2020 moves toward regular, competency-based and holistic assessment rather than exam-dominated summative assessment.",
+          "id": "e923f1ce-1412-4f22-a70c-18791b547cd9"
+        },
+        {
+          "question": "Which statement is NOT correct about the holistic 360-degree multidimensional report?",
+          "options": [
+            "It includes self- and peer-assessment",
+            "It includes cognitive, affective and psychomotor progress",
+            "It can strengthen the home-school link",
+            "It focuses only on individual work and excludes group work"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "A holistic report is not restricted to individual work; group work and multiple dimensions of development can also contribute evidence.\n\nKey Concept: 360-degree assessment is broad and multidimensional.",
+          "id": "3370a103-8b73-4205-ab6d-a621bdc9caf9"
+        },
+        {
+          "question": "Which option represents what NEP 2020 proposes regarding the content of assessment?",
+          "options": [
+            "Summative assessment",
+            "Learning mainly for examinations",
+            "360-degree multidimensional progress reporting",
+            "Only paper-and-pencil objective tests"
+          ],
+          "correctAnswerIndex": 2,
+          "explanation": "The policy proposes holistic, 360-degree multidimensional progress reporting rather than assessment dominated by exams or rote recall.\n\nKey Concept: Assessment should capture broad learner development and competencies.",
+          "id": "edca5ff2-bfce-47b8-955b-c7cf36078482"
+        },
+        {
+          "question": "Which set of assessment methods is proposed by NEP 2020?",
+          "options": [
+            "Role play + group work only",
+            "Role play + portfolios + projects",
+            "Group work + portfolios + projects",
+            "Role play + group work + portfolios + projects"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "The source marks all four methods—role play, group work, portfolios and projects—as proposed.\n\nKey Concept: Multiple assessment methods provide richer evidence of competencies and learning processes.",
+          "id": "585a4cfb-e6f5-42e1-9b9e-3c767b266c59"
+        },
+        {
+          "question": "What should the holistic 360-degree progress card mainly reflect?",
+          "options": [
+            "Comparison of performance with students in other states",
+            "Progress in cognitive, affective and psychomotor domains",
+            "Fixed eight-point labelling according to cognitive capability",
+            "Only comprehension problems for parents to address"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "The progress card is designed to show development across cognitive, affective and psychomotor domains.\n\nKey Concept: Holistic reporting focuses on development rather than simple ranking.",
+          "id": "938d91aa-d190-4a75-95d0-86ff3266af54"
+        },
+        {
+          "question": "Which statement is promoted by NEP 2020 regarding language and learning?",
+          "options": [
+            "Mother-tongue education harms educational advancement",
+            "Schools should make English the first language for all children",
+            "Multilingualism has important cognitive benefits for young learners",
+            "Bilingual education confuses children"
+          ],
+          "correctAnswerIndex": 2,
+          "explanation": "NEP 2020 recognizes cognitive and educational benefits of multilingualism.\n\nKey Concept: Using more than one language can support linguistic flexibility and cognitive development.",
+          "id": "a5e7dc0a-efcf-4ac3-beef-35b4e60897cb"
+        },
+        {
+          "question": "As per NEP 2020, education should:",
+          "options": [
+            "Be restricted to predetermined content",
+            "Focus on problem solving, critical thinking, inquiry and discovery",
+            "Focus only on rote memorisation",
+            "Avoid inquiry and discovery"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "The policy supports problem solving, critical thinking, inquiry and discovery rather than predetermined-content-only instruction.\n\nKey Concept: Higher-order learning involves questioning, investigation, reasoning and application.",
+          "id": "0a23d2e4-c330-4603-847b-87e0a719a371"
+        },
+        {
+          "question": "Which does NEP 2020 recommend?",
+          "options": [
+            "Multilingualism",
+            "Monolingualism",
+            "Standardization of curriculum",
+            "Standardization of assessment"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The source marks multilingualism as the recommendation.\n\nKey Concept: Multilingual education respects linguistic diversity and can support learning and inclusion.",
+          "id": "a3e68679-780b-4930-96c4-748cea7ebddf"
+        },
+        {
+          "question": "Which provision has NOT been promoted by NEP 2020 for education of students with disabilities?",
+          "options": [
+            "Appropriate infrastructure",
+            "One-on-one teachers and tutors",
+            "Compulsory special education",
+            "Suitable technological interventions"
+          ],
+          "correctAnswerIndex": 2,
+          "explanation": "The policy supports inclusive regular schooling, appropriate infrastructure, support and technology; compulsory separate special education is not the promoted direction.\n\nKey Concept: Inclusion aims to enable learners with disabilities to participate meaningfully in regular educational settings with needed support.",
+          "id": "b72bc168-4b9a-4c9f-9017-eec43d79fcfe"
+        },
+        {
+          "question": "What is the central focus of NEP 2020?",
+          "options": [
+            "Rigid curriculum, pedagogy and assessment",
+            "Multidisciplinary and holistic education",
+            "Learning mainly for examinations",
+            "Summative assessment methods"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "NEP 2020 places multidisciplinary and holistic education at the centre of reform.\n\nKey Concept: Holistic education develops multiple dimensions of the learner and connects learning across disciplines.",
+          "id": "57aedc00-c3b9-4778-a3ab-6899cc0c7f31"
+        },
+        {
+          "question": "According to NEP 2020, assessment is important mainly to:",
+          "options": [
+            "Conduct one formal exam each year",
+            "Find out a child's progress over a period of time",
+            "Place assessment at the centre of every educational activity",
+            "Rank children for merit"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Assessment is used to understand progress and guide educational improvement, not simply to rank students.\n\nKey Concept: Assessment should inform learning and teaching.",
+          "id": "66baef54-3d47-421d-9495-450dc734bede"
+        },
+        {
+          "question": "Which set has NOT been advocated by NEP 2020?",
+          "options": [
+            "Conceptual understanding",
+            "Summative assessment",
+            "Increasing curriculum content",
+            "Decreased use of technology"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "The source marks summative assessment, increased curriculum content and decreased use of technology as contrary to the advocated direction; the clearly intended non-advocated combination includes these.\n\nKey Concept: NEP 2020 emphasizes conceptual understanding, reduced content load and appropriate technology use.",
+          "id": "561b8bec-2a20-46eb-ab99-aada15e9bb57"
+        },
+        {
+          "question": "NEP 2020 emphasizes:",
+          "options": [
+            "Flexible, multilevel, activity-based learning",
+            "Only cognitive development",
+            "Standardization of a national curriculum",
+            "Measuring memorization ability"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The policy supports flexible, multilevel and activity-based learning rather than one standardized route for all learners.\n\nKey Concept: Flexibility and activity-based learning support diverse learning needs and active participation.",
+          "id": "581bafd6-821a-4456-9695-65438233f386"
+        },
+        {
+          "question": "The purpose of assessment under NEP 2020 is to provide information about:",
+          "options": [
+            "How students can be supported inside and outside the classroom",
+            "How students rank compared with classmates",
+            "Deficiencies so that failure can be labelled",
+            "Only their memorization capacity"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "Assessment should generate useful information for supporting learners in and beyond the classroom.\n\nKey Concept: Assessment information should guide support, teaching decisions and learner development.",
+          "id": "84e9d93b-e85d-4d5e-b38a-4de3a2f54139"
+        },
+        {
+          "question": "In the context of assessment, NEP 2020 proposes:",
+          "options": [
+            "Testing higher-order skills such as analysis and critical thinking",
+            "Recall-based objective tests only",
+            "Summative assessment only",
+            "Learning mainly for exams"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The policy supports assessment of higher-order abilities such as analysis and critical thinking.\n\nKey Concept: Good assessment should measure meaningful competencies, not only recall.",
+          "id": "950665c9-81e2-43f8-aaa4-704911f30c0f"
+        },
+        {
+          "question": "NEP 2020 proposes a shift towards:",
+          "options": [
+            "Learning to learn",
+            "Rote learning",
+            "Increasing course content",
+            "Standardization"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "Learning to learn is consistent with the policy's emphasis on learner autonomy, conceptual understanding and lifelong learning.\n\nKey Concept: Learning-to-learn includes developing strategies and dispositions for independent, continuous learning.",
+          "id": "47749776-0f2a-4194-9905-a712c8fc79bd"
+        },
+        {
+          "question": "National Education Policy 2020 emphasizes:",
+          "options": [
+            "Flexibility of the curriculum",
+            "Standardization of the curriculum",
+            "De-contextualization of textbooks",
+            "Rote memorization of textbooks"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The policy emphasizes curriculum flexibility so education can respond to diverse learners and contexts.\n\nKey Concept: Flexibility supports learner diversity, choice and meaningful learning.",
+          "id": "56868130-5295-4000-90cf-44dfd504b3bf"
+        },
+        {
+          "question": "According to NCF 2005, children:",
+          "options": [
+            "Are passive recipients of teacher-delivered content",
+            "Cannot regulate their learning",
+            "Learn best through rote memorization",
+            "Play an active role in constructing knowledge"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "NCF 2005 presents children as active participants who construct knowledge rather than passive receivers of information.\n\nKey Concept: Constructivist learning gives learners an active role in meaning-making.",
+          "id": "def13af9-2515-49b6-9c69-ae95f80178cd"
+        },
+        {
+          "question": "Which set of directions is proposed by NEP 2020?",
+          "options": [
+            "Reduced content + flexibility",
+            "Reduced content + flexibility + critical thinking",
+            "Rote learning + increased content",
+            "Standardisation + exam preparation"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "The policy combines reduced content load, flexibility, experiential learning and critical thinking.\n\nKey Concept: These reforms aim to make learning deeper, more relevant and learner-centred.",
+          "id": "eca86d1d-255e-41b2-9982-c6d2e89f77cd"
+        },
+        {
+          "question": "NEP 2020 proposes that primary-grade children should be taught:",
+          "options": [
+            "Home/local language in primary grades",
+            "One uniform language only",
+            "Discourage bilingual approach",
+            "Discourage multilingualism"
+          ],
+          "correctAnswerIndex": 0,
+          "explanation": "The policy recommends home/local language use in the early grades, while also supporting multilingualism.\n\nKey Concept: Familiar language can make early learning more accessible and meaningful.",
+          "id": "b433e4be-9fcc-4fb2-bbd3-6b18cf2b8a7f"
+        },
+        {
+          "question": "What should be the underlying principle of assessment according to NEP 2020?",
+          "options": [
+            "Testing rote memorisation",
+            "Teaching content only",
+            "Optimizing learning and development for all students",
+            "Assessing only cognitive domains at year-end"
+          ],
+          "correctAnswerIndex": 2,
+          "explanation": "Assessment should serve the learning and development of all students rather than merely measure recall.\n\nKey Concept: Assessment is a tool for improving learning, not an end in itself.",
+          "id": "4c497427-4060-4560-b872-b0039054781f"
+        },
+        {
+          "question": "NEP 2020 proposes that education should be:",
+          "options": [
+            "Drill-and-practice driven",
+            "Inquiry-driven and discovery-oriented",
+            "Textbook- and teacher-centric",
+            "Oriented mainly toward exams"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Inquiry and discovery encourage active investigation and knowledge construction.\n\nKey Concept: Inquiry-based learning begins with questions, investigation, evidence and reasoning.",
+          "id": "10e65905-ac61-486b-b9f3-de3c436100fd"
+        },
+        {
+          "question": "Hetal speaks Gujarati at home, but her school uses Hindi, which she does not know. What measure best aligns with NEP 2020?",
+          "options": [
+            "Ask Hetal to speak only Hindi",
+            "Encourage respect for native languages and a culture of multilingualism",
+            "Ask her to forget home learning",
+            "Move her to English-medium section"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "The source recommends respecting native languages and developing a culture of multilingualism rather than suppressing the child's home language.\n\nKey Concept: Linguistic diversity should be treated as an asset in an inclusive classroom.",
+          "id": "28fd9116-9c17-4624-b890-a9b953b5362b"
+        },
+        {
+          "question": "NEP 2020 proposes encouraging which combination?",
+          "options": [
+            "Rote memorisation + recall",
+            "Rote memorisation + critical thinking",
+            "Experiential learning + critical thinking",
+            "Experiential learning + recall"
+          ],
+          "correctAnswerIndex": 2,
+          "explanation": "The policy encourages experiential learning together with critical thinking.\n\nKey Concept: Experiences become educationally powerful when learners reflect, reason, question and apply ideas.",
+          "id": "ef867bec-d2c6-43da-b8ea-986d329a5626"
+        },
+        {
+          "question": "Which feature is NOT prescribed by NEP 2020?",
+          "options": [
+            "Identify/foster unique capabilities",
+            "Prioritise conceptual understanding over rote learning and exam preparation",
+            "Focus on creativity and critical thinking",
+            "Use rewards and punishment to promote compliance"
+          ],
+          "correctAnswerIndex": 3,
+          "explanation": "The policy emphasizes intrinsic development, creativity, critical thinking and unique capabilities; a rewards-and-punishment approach for compliance is not the prescribed focus.\n\nKey Concept: NEP 2020 promotes competency, creativity, reasoning and learner development rather than mere compliance.",
+          "id": "d41df556-aadc-47fd-8db8-49ae57df600b"
+        }
+      ],
+      "createdAt": 1789209524133,
+      "updatedAt": 1789209526121
+    }
+  ],
   "categories": [
     {
       "id": "cat_gk",

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, CheckCircle2, AlertCircle, RefreshCw, Server, ArrowRight, Shield, Sparkles, X, HardDrive, FileUp } from 'lucide-react';
+import { Database, CheckCircle2, AlertCircle, RefreshCw, Sparkles, X, HardDrive } from 'lucide-react';
 
 interface MongoDbModalProps {
   isOpen: boolean;
@@ -11,7 +11,6 @@ interface MongoDbModalProps {
 interface MongoStatus {
   connected: boolean;
   databaseName: string;
-  uriMasked: string;
   storageType: string;
   error?: string | null;
   counts: {
@@ -31,7 +30,6 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
   const [mongoStatus, setMongoStatus] = useState<MongoStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [mongoUri, setMongoUri] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   const fetchStatus = async () => {
@@ -50,16 +48,13 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
         if (data.error && !data.connected) {
           setMessage({
             type: 'info',
-            text: data.error.includes('auth') || data.error.includes('Authentication')
-              ? 'Authentication notice: App is running in Local Storage mode. To connect MongoDB Cloud, enter your cluster URI with valid credentials below.'
-              : `Storage Notice: Running in Local Storage mode (${data.error})`
+            text: `Cloud database is inactive. Using Local Offline Mode (${data.error})`
           });
         }
       } else {
         setMongoStatus({
           connected: false,
           databaseName: 'quizflash',
-          uriMasked: '',
           storageType: 'local_file_cache',
           error: data.error || text,
           counts: { quizzes: 0, categories: 0, users: 0, uploadedFiles: 0 }
@@ -79,88 +74,27 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
     }
   }, [isOpen]);
 
-  const handleConnectMongo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!mongoUri.trim()) return;
-
-    try {
-      setLoading(true);
-      setMessage(null);
-      const res = await fetch('/api/mongodb/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri: mongoUri.trim() })
-      });
-
-      const text = await res.text();
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        data = { error: text || 'Server returned invalid non-JSON response.' };
-      }
-
-      if (res.ok) {
-        setMessage({ type: 'success', text: data.message || 'Connected to MongoDB successfully!' });
-        fetchStatus();
-        setMongoUri('');
-        if (onSyncComplete) onSyncComplete();
-      } else {
-        setMessage({ 
-          type: 'error', 
-          text: data.error || text || 'Failed to authenticate with MongoDB. Please verify username, password, and database cluster permissions.' 
-        });
-      }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Connection error' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleRetryMongo = async () => {
     try {
       setLoading(true);
       setMessage(null);
-      const res = await fetch('/api/mongodb/retry', { method: 'POST' });
+      const res = await fetch('/api/mongodb/status?retry=true');
       const text = await res.text();
       let data: any = {};
       try { data = JSON.parse(text); } catch (e) { data = { error: text }; }
-      if (res.ok) {
-        setMessage({ type: 'success', text: data.message || 'Successfully connected to MongoDB Atlas!' });
-        await fetchStatus();
+      if (res.ok && data.connected) {
+        setMessage({ type: 'success', text: 'Successfully connected and verified MongoDB Atlas cluster!' });
+        setMongoStatus(data);
         if (onSyncComplete) onSyncComplete();
       } else {
         setMessage({ 
           type: 'error', 
-          text: data.error || 'Authentication failed. Please verify credentials in MongoDB Atlas Database Access.' 
+          text: data.error || 'Failed to establish cloud database connection. Please verify MONGODB_URI in environment variables.' 
         });
         await fetchStatus();
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Retry connection failed' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    try {
-      setLoading(true);
-      setMessage(null);
-      const res = await fetch('/api/mongodb/disconnect', { method: 'POST' });
-      const text = await res.text();
-      let data: any = {};
-      try { data = JSON.parse(text); } catch (e) { data = { error: text }; }
-      if (res.ok) {
-        setMessage({ type: 'success', text: data.message || 'Reset to Local Storage mode.' });
-        fetchStatus();
-        if (onSyncComplete) onSyncComplete();
-      } else {
-        setMessage({ type: 'error', text: data.error || text || 'Failed to disconnect' });
-      }
-    } catch (e: any) {
-      setMessage({ type: 'error', text: 'Failed to disconnect' });
     } finally {
       setLoading(false);
     }
@@ -189,7 +123,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
       if (res.ok) {
         setMessage({
           type: 'success',
-          text: `✓ ${data.totalQuizzes || quizzes.length} Quizzes synchronized with Storage!`
+          text: `✓ ${data.totalQuizzes || quizzes.length} Quizzes successfully backed up to MongoDB Atlas!`
         });
         fetchStatus();
         if (onSyncComplete) onSyncComplete();
@@ -208,7 +142,7 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
       <div 
-        className={`w-full max-w-lg rounded-3xl p-6 shadow-2xl border transition-all ${
+        className={`w-full max-w-md rounded-3xl p-6 shadow-2xl border transition-all ${
           isDarkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
@@ -219,8 +153,8 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
               <Database size={20} />
             </div>
             <div>
-              <h3 className="text-base font-black tracking-tight">MongoDB Database Center</h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Cloud Database & Storage Sync</p>
+              <h3 className="text-base font-black tracking-tight">MongoDB Cloud Sync</h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Auto-connected via environment secrets</p>
             </div>
           </div>
           <button 
@@ -249,10 +183,10 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
               </span>
               <div>
                 <div className="text-xs font-black uppercase tracking-wider">
-                  {mongoStatus?.connected ? 'MongoDB Connected & Active' : 'Local Storage Mode Active'}
+                  {mongoStatus?.connected ? 'MongoDB Connected' : 'Local Storage Mode Active'}
                 </div>
                 <div className="text-[11px] opacity-80 mt-0.5">
-                  Database: <span className="font-bold">{mongoStatus?.databaseName || 'quizflash'}</span>
+                  Secure cluster connection active.
                 </div>
               </div>
             </div>
@@ -305,70 +239,37 @@ export const MongoDbModal: React.FC<MongoDbModalProps> = ({
                 <Sparkles size={14} className="text-indigo-500" /> Database Synchronization
               </h4>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Upload and backup all your quizzes and files into the database.
+                Upload and backup all your quizzes and categories into your secure MongoDB database.
               </p>
             </div>
           </div>
           <button
             onClick={handleSyncAll}
-            disabled={syncing}
-            className="w-full mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            disabled={syncing || !mongoStatus?.connected}
+            className="w-full mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Syncing to Database...' : 'Upload & Sync All Data'}
+            {syncing ? 'Syncing to Database...' : 'Backup Local Data to MongoDB'}
           </button>
         </div>
 
-        {/* MongoDB URI Info & Retry Button */}
+        {/* Retry / Reload Button */}
         {!mongoStatus?.connected && (
-          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 mb-5">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <h4 className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
-                <Shield size={14} /> Registered MongoDB Cloud URI
-              </h4>
-              <span className="px-2 py-0.5 rounded-md bg-amber-200/50 dark:bg-amber-900/40 text-[9px] font-black uppercase text-amber-800 dark:text-amber-300">
-                Pending Auth
-              </span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-black/5 dark:bg-black/30 border border-black/10 dark:border-white/10 font-mono text-[10px] break-all text-slate-700 dark:text-slate-300 mb-3 select-all">
-              {mongoStatus?.uriMasked || 'mongodb+srv://rohit37816_db_user:******@cluster0.1e9ikck.mongodb.net/?appName=Cluster0'}
-            </div>
-
-            <button
-              onClick={handleRetryMongo}
-              disabled={loading}
-              className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-amber-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 mb-3 disabled:opacity-50"
-            >
-              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-              {loading ? 'Connecting to Cluster...' : 'Test / Connect MongoDB Now'}
-            </button>
-
-            <div className="text-[10px] text-amber-800 dark:text-amber-300/90 space-y-1 bg-amber-100/60 dark:bg-amber-900/20 p-2.5 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
-              <div className="font-black uppercase tracking-wider text-[9px]">MongoDB Atlas Checklist:</div>
-              <p>• <b>Database Access:</b> User <code className="font-bold">rohit37816_db_user</code> password <code className="font-bold">ACASd3vHqdurgBpW</code> bana hona chahiye.</p>
-              <p>• <b>Role:</b> User ke paas <code className="font-bold">Read and write to any database</code> role ho.</p>
-              <p>• <b>Network Access:</b> IP Access List me <code className="font-bold">0.0.0.0/0</code> (Allow Access Anywhere) enabled ho.</p>
-            </div>
-          </div>
+          <button
+            onClick={handleRetryMongo}
+            disabled={loading}
+            className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-amber-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 mb-4 disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Testing Connection...' : 'Retry Connecting MongoDB'}
+          </button>
         )}
 
         <div className="flex items-center gap-2 pt-2">
-          {mongoStatus?.connected && (
-            <button
-              type="button"
-              onClick={handleDisconnect}
-              disabled={loading}
-              className="flex-1 py-2.5 px-4 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 transition-all flex items-center justify-center gap-1.5"
-            >
-              <Database size={14} />
-              Disconnect
-            </button>
-          )}
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-black uppercase tracking-wider shadow-md hover:opacity-90 active:scale-95 transition-all"
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-black uppercase tracking-wider shadow-md hover:opacity-90 active:scale-95 transition-all"
           >
             Close
           </button>

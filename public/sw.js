@@ -1,29 +1,20 @@
-// QuizFlash Service Worker v3.2 - Ultra-Resilient Low-Internet & Offline Engine
-const STATIC_CACHE = 'quizflash-static-v3.2';
-const API_CACHE = 'quizflash-api-v3.2';
+// QuizFlash Service Worker v3.0 - High Performance & Offline Resilience
+const CACHE_NAME = 'quizflash-v3.1';
 
+// Essential offline fallback assets
 const PRECACHE_ASSETS = [
   '/',
-  '/index.html',
   '/manifest.json',
-  '/icon.jpg',
-  '/logo.jpg'
-];
-
-// Critical API endpoints that must be readable offline / in low internet
-const OFFLINE_SAFE_APIS = [
-  '/api/quizzes',
-  '/api/categories',
-  '/api/settings/quiz_config',
-  '/api/health'
+  '/icon.jpg'
 ];
 
 self.addEventListener('install', (event) => {
+  // Activate immediately without waiting
   self.skipWaiting();
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
+    caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('Pre-cache non-fatal warning:', err);
+        console.warn('Pre-caching non-fatal warning:', err);
       });
     })
   );
@@ -34,8 +25,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== STATIC_CACHE && key !== API_CACHE) {
-            console.log('Clearing old service worker cache:', key);
+          if (key !== CACHE_NAME) {
+            console.log('Cleaning old cache:', key);
             return caches.delete(key);
           }
         })
@@ -44,90 +35,47 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Helper: Fetch with timeout for low internet resilience
-function fetchWithTimeout(request, timeoutMs = 2500) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error('Network timeout'));
-    }, timeoutMs);
-
-    fetch(request)
-      .then((response) => {
-        clearTimeout(timer);
-        resolve(response);
-      })
-      .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-  });
-}
-
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests and http/https schemes
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+  
   if (!url.protocol.startsWith('http')) return;
 
-  // 1. Critical Read-Only API Endpoints: Network First with Cache Fallback for Low Internet & Offline
-  const isOfflineSafeApi = OFFLINE_SAFE_APIS.some(apiPath => url.pathname.startsWith(apiPath));
-  if (isOfflineSafeApi) {
-    event.respondWith(
-      fetchWithTimeout(event.request, 2000)
-        .then((networkRes) => {
-          if (networkRes && networkRes.status === 200) {
-            const copy = networkRes.clone();
-            caches.open(API_CACHE).then((cache) => cache.put(event.request, copy));
-          }
-          return networkRes;
-        })
-        .catch(() => {
-          // Fallback to cached API data
-          return caches.match(event.request).then((cached) => {
-            if (cached) return cached;
-            // Empty array fallback for list queries
-            return new Response(JSON.stringify([]), {
-              headers: { 'Content-Type': 'application/json', 'X-Offline-Fallback': 'true' }
-            });
-          });
-        })
-    );
-    return;
-  }
-
-  // Skip any other mutating or non-safe APIs
+  // Never cache API routes or dynamic server calls
   if (url.pathname.startsWith('/api/')) {
     return;
   }
 
-  // 2. HTML Navigation Requests (App Shell)
+  // Network First for HTML navigation to prevent stale bundle mismatch
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetchWithTimeout(event.request, 2500)
+      fetch(event.request)
         .then((response) => {
           if (response && response.status === 200) {
             const copy = response.clone();
-            caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, copy));
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           }
           return response;
         })
         .catch(() => {
           return caches.match(event.request).then((cached) => {
-            return cached || caches.match('/index.html') || caches.match('/');
+            return cached || caches.match('/');
           });
         })
     );
     return;
   }
 
-  // 3. Static Assets, Scripts, CDN Styles (Tailwind CDN, Fonts, Images)
+  // Cache first with network fallback for static assets (images, icons, fonts)
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) {
-        // Revalidate in background
+        // Return cached and update in background
         fetch(event.request)
           .then((networkRes) => {
-            if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
-              caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, networkRes));
+            if (networkRes && networkRes.status === 200) {
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkRes));
             }
           })
           .catch(() => {});
@@ -136,11 +84,11 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(event.request)
         .then((response) => {
-          if (!response || (response.status !== 200 && response.type !== 'opaque')) {
+          if (!response || response.status !== 200 || response.type !== 'basic') {
             return response;
           }
           const copy = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => {
+          caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, copy).catch(() => {});
           });
           return response;

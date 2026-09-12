@@ -236,15 +236,6 @@ function getActiveMongoUri(): string {
       return uri;
     }
   }
-  try {
-    if (fs.existsSync(MONGO_CONFIG_FILE)) {
-      const cfg = JSON.parse(fs.readFileSync(MONGO_CONFIG_FILE, 'utf-8'));
-      const uri = sanitizeMongoUri(cfg.uri);
-      if (uri && (uri.startsWith('mongodb://') || uri.startsWith('mongodb+srv://'))) {
-        return uri;
-      }
-    }
-  } catch (e) {}
   return '';
 }
 
@@ -259,52 +250,6 @@ function cleanForMongo(obj: any) {
   if (!obj || typeof obj !== 'object') return obj;
   const { _id, ...rest } = obj;
   return rest;
-}
-
-// Automatically sync all local data to MongoDB whenever connected
-async function syncLocalDataToMongo(database: any) {
-  try {
-    if (!database) return;
-    // 1. Quizzes
-    if (localStore.quizzes && localStore.quizzes.length > 0) {
-      for (const q of localStore.quizzes) {
-        if (q && q.id) {
-          await database.collection('quizzes').updateOne(
-            { id: q.id },
-            { $set: cleanForMongo({ ...q, updatedAt: q.updatedAt || Date.now() }) },
-            { upsert: true }
-          );
-        }
-      }
-    }
-    // 2. Categories
-    if (localStore.categories && localStore.categories.length > 0) {
-      for (const c of localStore.categories) {
-        if (c && c.id) {
-          await database.collection('categories').updateOne(
-            { id: c.id },
-            { $set: cleanForMongo(c) },
-            { upsert: true }
-          );
-        }
-      }
-    }
-    // 3. Users
-    if (localStore.users && localStore.users.length > 0) {
-      for (const u of localStore.users) {
-        if (u && (u.id || u.email)) {
-          await database.collection('users').updateOne(
-            { $or: [{ id: u.id }, { email: u.email }] },
-            { $set: cleanForMongo(u) },
-            { upsert: true }
-          );
-        }
-      }
-    }
-    console.log(`[Storage] Auto-sync complete: Synced ${localStore.quizzes.length} quizzes and ${localStore.categories.length} categories to MongoDB.`);
-  } catch (syncErr) {
-    console.warn('[Storage] MongoDB auto-sync notice:', syncErr);
-  }
 }
 
 async function connectToMongoDB(customUri?: string, forceRetry = false) {
@@ -343,32 +288,7 @@ async function connectToMongoDB(customUri?: string, forceRetry = false) {
     lastMongoError = null;
     failedAuthUris.delete(uriToUse);
 
-    // Save URI if customUri succeeded
-    if (customUri) {
-      try {
-        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(MONGO_CONFIG_FILE, JSON.stringify({ uri: uriToUse, updatedAt: Date.now() }, null, 2));
-
-        // Also update .env file for robust persistence across server restarts
-        const envPath = path.join(process.cwd(), '.env');
-        let envContent = '';
-        if (fs.existsSync(envPath)) {
-          envContent = fs.readFileSync(envPath, 'utf-8');
-        }
-        if (envContent.includes('MONGODB_URI=')) {
-          envContent = envContent.replace(/^MONGODB_URI=.*$/gm, `MONGODB_URI=${uriToUse}`);
-        } else {
-          envContent += `\nMONGODB_URI=${uriToUse}\n`;
-        }
-        fs.writeFileSync(envPath, envContent);
-        process.env.MONGODB_URI = uriToUse;
-      } catch (e) {
-        console.error('Failed to save MongoDB URI to persistent storage:', e);
-      }
-    }
-
     console.log('[Storage] Connected successfully to MongoDB database (quizflash).');
-    syncLocalDataToMongo(db).catch(() => {});
     isConnectingMongo = false;
     return db;
   } catch (err: any) {
@@ -422,14 +342,10 @@ app.get('/api/mongodb/status', async (req, res) => {
         database.collection('quiz_files').countDocuments().catch(() => 0),
       ]);
 
-      const maskedUri = activeMongoUri
-        ? activeMongoUri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@.+)/, '$1******$3')
-        : 'mongodb://cluster...';
-
       return res.json({
         connected: true,
         databaseName: 'quizflash',
-        uriMasked: maskedUri,
+        uriMasked: '',
         storageType: 'MongoDB Cloud Atlas Database',
         error: null,
         counts: {
@@ -442,15 +358,10 @@ app.get('/api/mongodb/status', async (req, res) => {
     }
   } catch (err) {}
 
-  const currentUri = activeMongoUri || getActiveMongoUri();
-  const maskedUri = currentUri
-    ? currentUri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@.+)/, '$1******$3')
-    : '';
-
   res.json({
     connected: false,
     databaseName: 'Local Storage & Memory Cache',
-    uriMasked: maskedUri,
+    uriMasked: '',
     storageType: 'Local File Persistence',
     error: lastMongoError,
     counts: {
@@ -479,77 +390,14 @@ app.post('/api/mongodb/retry', async (req, res) => {
   });
 });
 
-// MongoDB Connect / Save URI endpoint
+// MongoDB Connect / Save URI endpoint (Disabled UI connection inputs)
 app.post('/api/mongodb/connect', async (req, res) => {
-  const { uri } = req.body;
-  if (!uri || (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://'))) {
-    return res.status(400).json({ error: 'Valid MongoDB Connection URI starting with mongodb:// or mongodb+srv:// is required' });
-  }
-
-  try {
-    failedAuthUris.delete(uri);
-    const database = await connectToMongoDB(uri, true);
-    if (!database) {
-      return res.status(400).json({ 
-        error: lastMongoError || 'Could not authenticate with provided MongoDB URI. Please verify username, password, and database cluster permissions.' 
-      });
-    }
-
-    // Auto-sync existing local quizzes to MongoDB
-    if (localStore.quizzes.length > 0) {
-      for (const q of localStore.quizzes) {
-        await database.collection('quizzes').updateOne({ id: q.id }, { $set: cleanForMongo(q) }, { upsert: true });
-      }
-    }
-
-    if (localStore.categories.length > 0) {
-      for (const c of localStore.categories) {
-        await database.collection('categories').updateOne({ id: c.id }, { $set: cleanForMongo(c) }, { upsert: true });
-      }
-    }
-
-    res.json({
-      success: true,
-      message: 'Successfully connected to MongoDB and synchronized database collections!',
-      databaseName: 'quizflash'
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to establish MongoDB connection' });
-  }
+  res.status(403).json({ error: 'Manual MongoDB connection configuration is disabled. Please configure MONGODB_URI directly in environment secrets.' });
 });
 
-// MongoDB Disconnect endpoint
+// MongoDB Disconnect endpoint (Disabled UI disconnect inputs)
 app.post('/api/mongodb/disconnect', async (req, res) => {
-  try {
-    if (client) {
-      try { await client.close(); } catch (_) {}
-      client = null;
-    }
-    db = null;
-    activeMongoUri = '';
-    lastMongoError = null;
-
-    if (fs.existsSync(MONGO_CONFIG_FILE)) {
-      try { fs.unlinkSync(MONGO_CONFIG_FILE); } catch (_) {}
-    }
-
-    const envPath = path.join(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      try {
-        let envContent = fs.readFileSync(envPath, 'utf-8');
-        envContent = envContent.replace(/^MONGODB_URI=.*$/gm, '');
-        fs.writeFileSync(envPath, envContent);
-      } catch (_) {}
-    }
-    process.env.MONGODB_URI = '';
-
-    res.json({
-      success: true,
-      message: 'Disconnected from MongoDB. Operating smoothly on Local Storage mode.'
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Failed to disconnect MongoDB' });
-  }
+  res.status(403).json({ error: 'Disconnect operation is disabled. MongoDB is connected automatically via secure environment secrets.' });
 });
 
 // MongoDB Sync All endpoint
@@ -1332,9 +1180,15 @@ async function startServer() {
     });
     app.use(vite.middlewares);
     
-    app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get('*all', async (req, res, next) => {
+      try {
+        const url = req.originalUrl;
+        const rawHtml = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
+        const html = await vite.transformIndexHtml(url, rawHtml);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } catch (e) {
+        next(e);
+      }
     });
   }
 

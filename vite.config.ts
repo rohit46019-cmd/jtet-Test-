@@ -12,12 +12,12 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       define: {
         'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
-        'process.env': JSON.stringify({})
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-        }
+        },
+        dedupe: ['react', 'react-dom']
       }
     };
 });
